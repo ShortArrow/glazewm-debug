@@ -1,5 +1,5 @@
-use glazewm_debug::domain::{Window, WindowId, FocusState, WindowState, DisplayState};
-use glazewm_debug::domain::values::{Position, Size, Rectangle};
+use glazewm_debug::domain::values::{Position, Rectangle, Size};
+use glazewm_debug::domain::{DisplayState, FocusState, Window, WindowId, WindowState};
 
 mod window_creation {
     use super::*;
@@ -10,10 +10,7 @@ mod window_creation {
         let window_id = WindowId::new("test-window-1".to_string());
         let title = "main.rs - Visual Studio Code".to_string();
         let process_name = "Code".to_string();
-        let geometry = Rectangle::new(
-            Position::new(100, 200),
-            Size::new(800, 600),
-        );
+        let geometry = Rectangle::new(Position::new(100, 200), Size::new(800, 600));
 
         // When
         let window = Window::new(
@@ -65,7 +62,7 @@ mod window_creation {
         let window_id = WindowId::new("minimized-window".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(0, 0));
 
-        // When  
+        // When
         let window = Window::new(
             window_id,
             "Hidden App".to_string(),
@@ -308,7 +305,7 @@ mod window_validation {
         assert!(window.geometry().size.height > 0);
     }
 
-    #[test] 
+    #[test]
     fn should_handle_edge_case_titles() {
         let window_id = WindowId::new("test".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(100, 100));

@@ -1,6 +1,6 @@
-use glazewm_debug::domain::{Monitor, MonitorId, Workspace, WorkspaceId, Window, WindowId};
-use glazewm_debug::domain::{FocusState, TilingDirection, WindowState, DisplayState, DomainError};
-use glazewm_debug::domain::values::{Position, Size, Rectangle};
+use glazewm_debug::domain::values::{Position, Rectangle, Size};
+use glazewm_debug::domain::{DisplayState, DomainError, FocusState, TilingDirection, WindowState};
+use glazewm_debug::domain::{Monitor, MonitorId, Window, WindowId, Workspace, WorkspaceId};
 
 mod monitor_creation {
     use super::*;
@@ -9,10 +9,7 @@ mod monitor_creation {
     fn should_create_monitor_with_basic_properties() {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
-        let geometry = Rectangle::new(
-            Position::new(0, 0),
-            Size::new(1920, 1080),
-        );
+        let geometry = Rectangle::new(Position::new(0, 0), Size::new(1920, 1080));
 
         // When
         let monitor = Monitor::new(
@@ -20,7 +17,7 @@ mod monitor_creation {
             geometry,
             Vec::new(),
             FocusState::Focused,
-            96, // DPI
+            96,  // DPI
             1.0, // Scale factor
         );
 
@@ -38,7 +35,7 @@ mod monitor_creation {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(2560, 1440));
-        
+
         let workspace1 = create_test_workspace("ws-1", "Development", true);
         let workspace2 = create_test_workspace("ws-2", "Communication", false);
         let workspaces = vec![workspace1, workspace2];
@@ -57,7 +54,7 @@ mod monitor_creation {
         assert_eq!(monitor.workspaces().len(), 2);
         assert_eq!(monitor.dpi(), 144);
         assert_eq!(monitor.scale_factor(), 1.5);
-        
+
         // Should have one active workspace
         assert_eq!(monitor.active_workspaces().len(), 1);
         assert_eq!(monitor.active_workspaces()[0].name(), "Development");
@@ -97,7 +94,7 @@ mod monitor_workspace_management {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(1920, 1080));
-        
+
         let workspace1 = create_test_workspace("ws-1", "Keep", false);
         let workspace2 = create_test_workspace("ws-2", "Remove", false);
         let workspace2_id = workspace2.id().clone();
@@ -125,7 +122,7 @@ mod monitor_workspace_management {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(1920, 1080));
-        
+
         let workspace1 = create_test_workspace("ws-1", "First", true);
         let workspace2 = create_test_workspace("ws-2", "Second", false);
 
@@ -145,7 +142,7 @@ mod monitor_workspace_management {
 
         // Then
         assert!(result.is_ok());
-        
+
         // Only one workspace should be active
         let active_workspaces = monitor.active_workspaces();
         assert_eq!(active_workspaces.len(), 1);
@@ -161,7 +158,7 @@ mod monitor_focus_management {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(1920, 1080));
-        
+
         // Workspace 1 with unfocused windows
         let ws1_windows = vec![
             create_focused_window("w1", "Chrome", "chrome", false),
@@ -213,7 +210,7 @@ mod monitor_focus_management {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(1920, 1080));
-        
+
         let workspace = create_workspace_with_unfocused_windows();
         let monitor = Monitor::new(
             monitor_id,
@@ -236,7 +233,7 @@ mod monitor_focus_management {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
         let geometry = Rectangle::new(Position::new(0, 0), Size::new(1920, 1080));
-        
+
         let workspace1 = create_workspace_with_window_count(3);
         let workspace2 = create_workspace_with_window_count(2);
         let workspace3 = create_workspace_with_window_count(0); // Empty
@@ -279,10 +276,13 @@ mod monitor_validation {
 
         // Then
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DomainError::InvalidGeometry { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DomainError::InvalidGeometry { .. }
+        ));
     }
 
-    #[test] 
+    #[test]
     fn should_validate_dpi_values() {
         // Given
         let monitor_id = MonitorId::new("monitor-1".to_string());
@@ -300,7 +300,10 @@ mod monitor_validation {
 
         // Then
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DomainError::InvalidDpi { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DomainError::InvalidDpi { .. }
+        ));
     }
 
     #[test]
@@ -321,7 +324,10 @@ mod monitor_validation {
 
         // Then
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DomainError::InvalidScaleFactor { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DomainError::InvalidScaleFactor { .. }
+        ));
     }
 }
 
@@ -333,7 +339,11 @@ fn create_test_workspace(id: &str, name: &str, focused: bool) -> Workspace {
         name.to_string(),
         Vec::new(),
         TilingDirection::Horizontal,
-        if focused { FocusState::Focused } else { FocusState::Unfocused },
+        if focused {
+            FocusState::Focused
+        } else {
+            FocusState::Unfocused
+        },
         DisplayState::Shown,
     )
 }
@@ -343,7 +353,7 @@ fn create_workspace_with_unfocused_windows() -> Workspace {
         create_focused_window("w1", "Chrome", "chrome", false),
         create_focused_window("w2", "Firefox", "firefox", false),
     ];
-    
+
     Workspace::new(
         WorkspaceId::new("ws-unfocused".to_string()),
         "No Focus".to_string(),
@@ -388,7 +398,11 @@ fn create_focused_window(id: &str, title: &str, process: &str, focused: bool) ->
         process.to_string(),
         Rectangle::new(Position::new(0, 0), Size::new(800, 600)),
         WindowState::Tiling,
-        if focused { FocusState::Focused } else { FocusState::Unfocused },
+        if focused {
+            FocusState::Focused
+        } else {
+            FocusState::Unfocused
+        },
         DisplayState::Shown,
     )
 }

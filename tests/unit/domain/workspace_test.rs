@@ -1,6 +1,8 @@
-use glazewm_debug::domain::{Workspace, WorkspaceId, Window, WindowId, FocusState, TilingDirection};
-use glazewm_debug::domain::values::{Position, Size, Rectangle};
-use glazewm_debug::domain::{WindowState, DisplayState, DomainError};
+use glazewm_debug::domain::values::{Position, Rectangle, Size};
+use glazewm_debug::domain::{DisplayState, DomainError, WindowState};
+use glazewm_debug::domain::{
+    FocusState, TilingDirection, Window, WindowId, Workspace, WorkspaceId,
+};
 
 mod workspace_creation {
     use super::*;
@@ -129,7 +131,10 @@ mod workspace_window_management {
 
         // Then
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DomainError::WindowNotFound { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DomainError::WindowNotFound { .. }
+        ));
         assert_eq!(workspace.windows().len(), 1); // No change
     }
 
@@ -154,7 +159,10 @@ mod workspace_window_management {
 
         // Then
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DomainError::DuplicateWindowId { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            DomainError::DuplicateWindowId { .. }
+        ));
         assert_eq!(workspace.windows().len(), 1);
     }
 }
@@ -216,7 +224,7 @@ mod workspace_focus_management {
         let workspace_id = WorkspaceId::new("workspace-1".to_string());
         let windows = vec![
             create_test_window("w1", "App1", "app1"),
-            create_test_window("w2", "App2", "app2"), 
+            create_test_window("w2", "App2", "app2"),
             create_test_window("w3", "App3", "app3"),
         ];
 
@@ -263,13 +271,15 @@ mod workspace_layout_calculation {
 
         // Then
         assert_eq!(layout.len(), 2);
-        
+
         // Horizontal layout - windows should be side by side
         let total_width = layout.iter().map(|l| l.size.width).sum::<u32>();
         assert_eq!(total_width, container_size.width);
-        
+
         // All windows should have same height
-        assert!(layout.iter().all(|l| l.size.height == container_size.height));
+        assert!(layout
+            .iter()
+            .all(|l| l.size.height == container_size.height));
     }
 
     #[test]
@@ -297,11 +307,11 @@ mod workspace_layout_calculation {
 
         // Then
         assert_eq!(layout.len(), 2);
-        
+
         // Vertical layout - windows should be stacked
         let total_height = layout.iter().map(|l| l.size.height).sum::<u32>();
         assert_eq!(total_height, container_size.height);
-        
+
         // All windows should have same width
         assert!(layout.iter().all(|l| l.size.width == container_size.width));
     }
@@ -328,7 +338,11 @@ fn create_focused_window(id: &str, title: &str, process: &str, focused: bool) ->
         process.to_string(),
         Rectangle::new(Position::new(0, 0), Size::new(800, 600)),
         WindowState::Tiling,
-        if focused { FocusState::Focused } else { FocusState::Unfocused },
+        if focused {
+            FocusState::Focused
+        } else {
+            FocusState::Unfocused
+        },
         DisplayState::Shown,
     )
 }
