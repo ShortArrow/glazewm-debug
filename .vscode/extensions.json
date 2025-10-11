@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "bierner.markdown-mermaid",
+        "tamasfe.even-better-toml",
+        "davidanson.vscode-markdownlint",
+        "rust-lang.rust-analyzer"
+    ]
+}
