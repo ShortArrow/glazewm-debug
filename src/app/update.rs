@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::{interval, timeout};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::app::AppState;
 use crate::cli::{CliError, GlazewmClient, GlazewmParser, RealGlazewmClient};
@@ -14,7 +14,7 @@ use crate::cli::{CliError, GlazewmClient, GlazewmParser, RealGlazewmClient};
 pub enum UpdateError {
     #[error("CLI error: {0}")]
     CliError(#[from] CliError),
-    
+
     #[error("Update loop stopped")]
     Stopped,
 }
@@ -50,10 +50,7 @@ pub struct UpdateLoop {
 impl UpdateLoop {
     /// Create a new update loop with a real client
     pub fn new(config: UpdateConfig, state: AppState) -> Self {
-        let client = RealGlazewmClient::new(
-            config.glazewm_path.clone(),
-            config.command_timeout,
-        );
+        let client = RealGlazewmClient::new(config.glazewm_path.clone(), config.command_timeout);
 
         Self {
             client: Box::new(client),
@@ -78,13 +75,16 @@ impl UpdateLoop {
     /// Start the update loop
     /// This will run until the application state is set to stop
     pub async fn run(&self) -> Result<(), UpdateError> {
-        debug!("Starting update loop with {:?} interval", self.config.refresh_interval);
-        
+        debug!(
+            "Starting update loop with {:?} interval",
+            self.config.refresh_interval
+        );
+
         let mut interval_timer = interval(self.config.refresh_interval);
-        
+
         while self.state.is_running().await {
             interval_timer.tick().await;
-            
+
             match self.update_once().await {
                 Ok(()) => {
                     debug!("Successfully updated state");
@@ -100,7 +100,7 @@ impl UpdateLoop {
                 }
             }
         }
-        
+
         debug!("Update loop finished");
         Ok(())
     }
@@ -112,40 +112,22 @@ impl UpdateLoop {
         }
 
         // Query monitors first
-        let monitors_json = timeout(
-            self.config.command_timeout,
-            self.client.query_monitors()
-        ).await
-        .map_err(|_| CliError::CommandTimeout {
-            command: "query monitors".to_string(),
-            timeout: self.config.command_timeout,
-        })??;
+        let monitors_json = timeout(self.config.command_timeout, self.client.query_monitors())
+            .await
+            .map_err(|_| CliError::CommandTimeout {
+                command: "query monitors".to_string(),
+                timeout: self.config.command_timeout,
+            })??;
 
         // Parse monitors
-        let mut monitors = GlazewmParser::parse_monitors(&monitors_json)?;
-        
-        // Query windows and associate them with workspaces
-        // For now, we'll skip window association since it needs more complex logic
-        if let Ok(windows_json) = timeout(
-            self.config.command_timeout,
-            self.client.query_windows()
-        ).await {
-            match windows_json {
-                Ok(json) => {
-                    // TODO: Parse and associate windows with workspaces
-                    if let Err(e) = GlazewmParser::parse_windows(&json, &monitors) {
-                        warn!("Failed to parse windows: {}", e);
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to query windows: {}", e);
-                }
-            }
-        }
+        let monitors = GlazewmParser::parse_monitors(&monitors_json)?;
+
+        // Note: Windows are already included in the monitor/workspace hierarchy from glazewm
+        // No separate window parsing is needed
 
         // Update application state
         self.state.update_monitors(monitors).await;
-        
+
         Ok(())
     }
 
@@ -186,7 +168,7 @@ mod tests {
     impl GlazewmClient for MockGlazewmClient {
         async fn query_monitors(&self) -> Result<Value, CliError> {
             self.call_count.fetch_add(1, Ordering::Relaxed);
-            
+
             if self.should_fail {
                 return Err(CliError::CommandExecutionFailed {
                     command: "query monitors".to_string(),
@@ -197,8 +179,8 @@ mod tests {
                 "success": true,
                 "data": {
                     "monitors": [{
+                        "type": "monitor",
                         "id": "mock-monitor",
-                        "name": "Mock Monitor",
                         "x": 0,
                         "y": 0,
                         "width": 1920,
@@ -206,7 +188,8 @@ mod tests {
                         "scaleFactor": 1.0,
                         "dpi": 96,
                         "hasFocus": true,
-                        "workspaces": []
+                        "children": [],
+                        "childFocusOrder": []
                     }]
                 },
                 "error": null
@@ -236,15 +219,11 @@ mod tests {
         let config = UpdateConfig::default();
         let state = AppState::new();
         let client = MockGlazewmClient::new(false);
-        let update_loop = UpdateLoop::with_client(
-            Box::new(client),
-            config,
-            state.clone(),
-        );
+        let update_loop = UpdateLoop::with_client(Box::new(client), config, state.clone());
 
         let result = update_loop.update_once().await;
         assert!(result.is_ok());
-        
+
         // Should have updated state with one monitor
         assert_eq!(state.monitor_count().await, 1);
     }
@@ -254,15 +233,11 @@ mod tests {
         let config = UpdateConfig::default();
         let state = AppState::new();
         let client = MockGlazewmClient::new(true); // Will fail
-        let update_loop = UpdateLoop::with_client(
-            Box::new(client),
-            config,
-            state.clone(),
-        );
+        let update_loop = UpdateLoop::with_client(Box::new(client), config, state.clone());
 
         let result = update_loop.update_once().await;
         assert!(result.is_err());
-        
+
         // State should remain unchanged
         assert_eq!(state.monitor_count().await, 0);
     }
@@ -272,11 +247,7 @@ mod tests {
         let config = UpdateConfig::default();
         let state = AppState::new();
         let client = MockGlazewmClient::new(false);
-        let update_loop = UpdateLoop::with_client(
-            Box::new(client),
-            config,
-            state.clone(),
-        );
+        let update_loop = UpdateLoop::with_client(Box::new(client), config, state.clone());
 
         // Stop the application
         state.stop().await;
