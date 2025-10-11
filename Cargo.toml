@@ -1,0 +1,72 @@
+[package]
+name = "glazewm-debug"
+version = "0.1.0"
+edition = "2021"
+description = "A CLI+JSON TUI debugger for glazewm window manager state visualization"
+license = "MIT"
+repository = "https://github.com/username/glazewm-debug"
+keywords = ["glazewm", "tui", "window-manager", "debugging"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# Core JSON processing
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime for CLI execution  
+tokio = { version = "1.0", features = ["process", "time", "rt-multi-thread", "macros"] }
+
+# CLI argument parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# TUI framework
+ratatui = "0.20"
+
+# Cross-platform terminal control
+crossterm = "0.27"
+
+# Structured error handling
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+# Testing utilities
+tokio-test = "0.4"
+tempfile = "3.0"
+assert_cmd = "2.0"
+predicates = "3.0"
+
+# Property-based testing
+proptest = "1.0"
+
+[profile.release]
+# Optimize for size while maintaining performance
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+# Faster compilation for development
+opt-level = 0
+debug = true
+incremental = true
+
+[[bin]]
+name = "glazewm-debug"
+path = "src/main.rs"
+
+[features]
+default = []
+
+# Development features
+dev-tools = ["tracing/max_level_trace"]
+
+# Future features
+json-output = []
+config-file = []
+plugin-system = []
