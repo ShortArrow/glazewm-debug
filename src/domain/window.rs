@@ -92,6 +92,17 @@ impl Window {
         }
     }
 
+    /// Get state indicator for display ([T], [F], [M], [H])
+    pub fn state_indicator(&self) -> &'static str {
+        match (&self.state, &self.display_state) {
+            (_, DisplayState::Hidden) => "[H]",
+            (WindowState::Minimized, _) => "[M]",
+            (WindowState::Floating, _) => "[F]",
+            (WindowState::Fullscreen, _) => "[F]", // Fullscreen treated as floating for display
+            (WindowState::Tiling, _) => "[T]",
+        }
+    }
+
     // State mutations
     pub fn change_state(&mut self, new_state: WindowState) -> Result<(), DomainError> {
         // For now, allow all state transitions
@@ -175,5 +186,31 @@ mod tests {
         window.set_focus_state(FocusState::Focused);
         assert!(window.is_focused());
         assert_eq!(window.focus_state(), &FocusState::Focused);
+    }
+
+    #[test]
+    fn should_generate_state_indicators() {
+        let mut window = create_test_window();
+
+        // Test tiling state
+        window.state = WindowState::Tiling;
+        assert_eq!(window.state_indicator(), "[T]");
+
+        // Test floating state
+        window.state = WindowState::Floating;
+        assert_eq!(window.state_indicator(), "[F]");
+
+        // Test minimized state
+        window.state = WindowState::Minimized;
+        assert_eq!(window.state_indicator(), "[M]");
+
+        // Test fullscreen state (should show as floating)
+        window.state = WindowState::Fullscreen;
+        assert_eq!(window.state_indicator(), "[F]");
+
+        // Test hidden state (overrides window state)
+        window.state = WindowState::Tiling;
+        window.display_state = DisplayState::Hidden;
+        assert_eq!(window.state_indicator(), "[H]");
     }
 }

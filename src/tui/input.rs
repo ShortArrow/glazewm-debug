@@ -29,6 +29,11 @@ impl InputHandler {
             // Refresh commands
             KeyCode::Char('r') | KeyCode::Char('R') => InputAction::Refresh,
 
+            // Toggle display mode
+            KeyCode::Char('c') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                InputAction::ToggleMode
+            }
+
             // Future: Navigation keys could be added here
             // KeyCode::Up => InputAction::NavigateUp,
             // KeyCode::Down => InputAction::NavigateDown,
@@ -92,6 +97,16 @@ mod tests {
         assert_eq!(
             handler.handle_key(key_event(KeyCode::Char('R'))),
             InputAction::Refresh
+        );
+    }
+
+    #[test]
+    fn should_handle_toggle_mode_keys() {
+        let handler = InputHandler::new();
+
+        assert_eq!(
+            handler.handle_key(key_event(KeyCode::Char('c'))),
+            InputAction::ToggleMode
         );
     }
 

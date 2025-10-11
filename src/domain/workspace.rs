@@ -156,6 +156,21 @@ impl Workspace {
             .collect()
     }
 
+    /// Calculate the percentage of workspace each window occupies
+    pub fn calculate_window_percentages(&self) -> Vec<(WindowId, f32)> {
+        if self.windows.is_empty() {
+            return Vec::new();
+        }
+
+        // For now, equal distribution - in future could use actual tiling_size from glazewm
+        let percentage = 100.0 / self.windows.len() as f32;
+
+        self.windows
+            .iter()
+            .map(|window| (window.id().clone(), percentage))
+            .collect()
+    }
+
     fn calculate_vertical_layout(&self, container_size: Size) -> Vec<WindowLayout> {
         let window_count = self.windows.len() as u32;
         let window_height = container_size.height / window_count;

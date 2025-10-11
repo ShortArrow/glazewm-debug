@@ -13,11 +13,21 @@ use tracing::{debug, error};
 use crate::app::AppState;
 use crate::tui::{InputHandler, Renderer};
 
+/// Display mode for the TUI
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DisplayMode {
+    /// Detailed view with full information
+    Detailed,
+    /// Compact tree-style view
+    Compact,
+}
+
 /// Main TUI application that manages the terminal interface
 pub struct TuiApp {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     renderer: Renderer,
     input_handler: InputHandler,
+    display_mode: DisplayMode,
 }
 
 impl TuiApp {
@@ -34,6 +44,7 @@ impl TuiApp {
             terminal,
             renderer: Renderer::new(),
             input_handler: InputHandler::new(),
+            display_mode: DisplayMode::Detailed,
         })
     }
 
@@ -46,7 +57,7 @@ impl TuiApp {
             // Render current state
             let monitors = state.get_monitors().await;
             self.terminal.draw(|frame| {
-                self.renderer.render(frame, &monitors);
+                self.renderer.render(frame, &monitors, self.display_mode);
             })?;
 
             // Handle input with timeout
@@ -63,6 +74,13 @@ impl TuiApp {
                         InputAction::Refresh => {
                             debug!("User requested refresh");
                             // The update loop will handle the refresh
+                        }
+                        InputAction::ToggleMode => {
+                            debug!("User toggled display mode");
+                            self.display_mode = match self.display_mode {
+                                DisplayMode::Detailed => DisplayMode::Compact,
+                                DisplayMode::Compact => DisplayMode::Detailed,
+                            };
                         }
                         InputAction::None => {
                             // No action needed
@@ -103,6 +121,8 @@ pub enum InputAction {
     Quit,
     /// Force refresh the data
     Refresh,
+    /// Toggle display mode between detailed and compact
+    ToggleMode,
     /// No action
     None,
 }
