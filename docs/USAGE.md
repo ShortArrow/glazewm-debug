@@ -1,16 +1,16 @@
 # Usage Guide
 
-This guide covers detailed usage of glazewm-debug, including command-line options, keyboard controls, and output interpretation.
+This guide covers detailed usage of glazewm-debug CLI options and keyboard controls.
 
 ## Command Line Interface
 
 ### Basic Execution
 
 ```bash
-# Default execution (1-second refresh rate)
+# Default execution (1-second refresh)
 glazewm-debug
 
-# Using cargo during development
+# Development execution
 cargo run
 
 # Release build
@@ -29,37 +29,35 @@ OPTIONS:
     -V, --version             Print version information
 ```
 
-#### Detailed Option Descriptions
+#### Option Details
 
-**`--refresh-rate <MS>` / `-r <MS>`**
+**`--refresh-rate <MS>`**
 
-- Controls how often glazewm-debug queries glazewm for state updates
-- Default: 1000ms (1 second)
+- Controls glazewm query frequency
 - Range: 100ms - 10000ms
-- Lower values provide more responsive updates but use more CPU
+- Lower values = more responsive, higher CPU usage
 
 ```bash
-# Very responsive (every 250ms)
+# Very responsive (250ms)
 glazewm-debug --refresh-rate 250
 
-# Conservative (every 5 seconds)  
+# Conservative (5 seconds)  
 glazewm-debug --refresh-rate 5000
 ```
 
-**`--quiet` / `-q`**
+**`--quiet`**
 
 - Reduces output verbosity
-- Hides status messages and debug information
-- Useful for scripting or when running in background
+- Hides status messages and debug info
+- Useful for scripting
 
 ```bash
-# Minimal output
 glazewm-debug --quiet
 ```
 
 ### Environment Variables
 
-**`RUST_LOG`** - Control logging level
+**`RUST_LOG`** - Control logging level:
 
 ```bash
 # Debug logging
@@ -68,14 +66,13 @@ RUST_LOG=debug glazewm-debug
 # Specific module logging
 RUST_LOG=glazewm_debug::cli=trace glazewm-debug
 
-# Suppress most logging
+# Error only
 RUST_LOG=error glazewm-debug
 ```
 
-**`NO_COLOR`** - Disable colored output
+**`NO_COLOR`** - Disable colored output:
 
 ```bash
-# Disable colors for scripting
 NO_COLOR=1 glazewm-debug
 ```
 
@@ -85,52 +82,48 @@ NO_COLOR=1 glazewm-debug
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `q` | Quit | Exit the application |
-| `Escape` | Quit | Alternative quit key |
+| `q` | Quit | Exit application |
+| `Escape` | Quit | Alternative quit |
 | `Ctrl+C` | Force Quit | Immediate termination |
 
 ### Refresh Controls
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `r` | Force Refresh | Immediately query glazewm for updated state |
+| `r` | Force Refresh | Immediately query glazewm |
 | `Space` | Toggle Pause | Pause/resume automatic updates |
 
 ### Display Controls
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `c` | Compact Mode | Toggle between detailed and compact view |
+| `c` | Compact Mode | Toggle detailed/compact view |
 | `h` | Toggle Hidden | Show/hide hidden windows |
 | `?` | Help | Display help overlay |
 
-### Navigation (Future Features)
+### Future Navigation
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| `↑/↓` | Navigate | Move between workspaces |
-| `←/→` | Navigate | Move between monitors |
-| `Tab` | Focus Next | Highlight next window |
-| `Enter` | Details | Show detailed window information |
+| Key | Action | Status |
+|-----|--------|--------|
+| `↑/↓` | Navigate Workspaces | Planned |
+| `←/→` | Navigate Monitors | Planned |
+| `Tab` | Focus Next | Planned |
+| `Enter` | Show Details | Planned |
 
 ## Output Modes
 
 ### Default TUI Mode
 
-The standard mode provides a real-time terminal interface showing the current glazewm state in a hierarchical format.
+Real-time terminal interface with:
 
-**Features:**
-
-- Real-time updates
 - Hierarchical display (Monitor → Workspace → Window)
 - Color-coded focus indicators
 - Interactive keyboard controls
+- Automatic updates every 1 second
 
 ### Quiet Mode (`--quiet`)
 
-Reduces visual clutter for scripting or background operation.
-
-**Changes in Quiet Mode:**
+Reduced visual clutter:
 
 - No status bar
 - Minimal error messages
@@ -139,95 +132,43 @@ Reduces visual clutter for scripting or background operation.
 
 ## Output Interpretation
 
-### Monitor Display
+### Basic Format
 
 ```text
 ┌─ Monitor 1 (1920x1080) [Active] ───────────────────────────┐
-│ ...workspace content...                                     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Monitor Header Format:**
-
-- `Monitor X` - Monitor identifier from glazewm
-- `(1920x1080)` - Resolution in pixels
-- `[Active]` - Currently focused monitor
-- Box drawing characters frame the monitor content
-
-### Workspace Display
-
-```text
-│ Workspace 2 [Active] ──────────────────────────────────────│
-│ ...window content...                                        │
-```
-
-**Workspace Header Format:**
-
-- `Workspace X` - Workspace name/number
-- `[Active]` - Currently active workspace
-- Window count may be shown in compact mode
-
-### Window Display
-
-#### Detailed View
-
-```text
+│ Workspace 2 [Active] ────────────────────────────────────── │
 │ ┌─ vscode* (33.3%) ──┐ ┌─ chrome (66.7%) ──────────────────┐ │
 │ │ main.rs - VS Code  │ │ Stack Overflow - Chrome            │ │
 │ │ [T] 613x952        │ │ [T] 1267x952                       │ │
 │ └────────────────────┘ └────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### Compact View
+**Element Breakdown:**
 
-```text
-├─ WS 2 [Active] (3 windows)
-│  ├─ wezterm* [T] CC-LED-MCP
-│  ├─ chrome [T] Google Search
-│  └─ vscode [T] main.rs
-```
-
-**Window Information:**
-
-- `*` after name = Currently focused window
-- `(33.3%)` = Percentage of workspace area (detailed view)
-- `[T]` = Window state (see State Indicators below)
-- Size information in pixels (detailed view)
+- `Monitor 1` - Monitor identifier
+- `(1920x1080)` - Resolution
+- `[Active]` - Focus state
+- `vscode*` - Process name + focus indicator
+- `(33.3%)` - Window size percentage
+- `[T]` - Window state (Tiling/Floating/Minimized/Hidden)
+- `613x952` - Absolute dimensions
 
 ### State Indicators
 
 **Window States:**
 
-- `[T]` - Tiling mode (normal tiled window)
-- `[F]` - Floating mode (not tiled)
-- `[M]` - Minimized (iconified)
-- `[H]` - Hidden (not visible)
+- `[T]` - Tiling mode (normal)
+- `[F]` - Floating mode  
+- `[M]` - Minimized
+- `[H]` - Hidden
 
 **Focus Indicators:**
 
 - `*` - Currently focused window
-- `[Active]` - Active workspace or monitor
-- Bright/bold text - Focused elements
-- Dim text - Inactive elements
-
-### Multi-Monitor Layout
-
-```text
-┌─ Monitor 1 (1920x1080) ─────────┐ ┌─ Monitor 2 (2560x1440) [Active] ─┐
-│ Workspace 1 [Active] ─────────── │ │ Workspace 4 [Active] ──────────── │
-│ ┌─ chrome* ──────────────────────┐ │ │ ┌─ vscode* ─────┐ ┌─ terminal ───┐ │
-│ │ Google Chrome                  │ │ │ │ main.rs       │ │ cargo build  │ │
-│ │ [T]                           │ │ │ │ [T]           │ │ [T]          │ │
-│ └───────────────────────────────┘ │ │ └───────────────┘ └──────────────┘ │
-└──────────────────────────────────┘ └────────────────────────────────────┘
-```
-
-**Multi-Monitor Features:**
-
-- Side-by-side monitor display
-- Independent workspace tracking per monitor  
-- Focus indication spans monitors
-- Proportional sizing based on actual resolutions
+- `[Active]` - Active workspace/monitor
+- **Bold** - Primary focus
+- Dim - Inactive elements
 
 ## Troubleshooting
 
@@ -236,55 +177,51 @@ Reduces visual clutter for scripting or background operation.
 - **"glazewm command not found"**
 
 ```bash
-# Check if glazewm is in PATH
-where glazewm
-glazewm --version
+# Check PATH
+where glazewm          # Windows
+which glazewm          # Unix
 
-# Add to PATH if needed (PowerShell)
-$env:PATH += ";C:\Program Files\glazewm"
+# Verify installation
+glazewm --version
 ```
 
 - **"Permission denied"**
 
 ```bash
-# Run as administrator or check glazewm permissions
-# Ensure glazewm service is running
-sc query GlazeWM
+# Check glazewm service
+sc query GlazeWM       # Windows
+
+# Run as administrator if needed
 ```
 
 - **"Invalid JSON response"**
 
 ```bash
-# Test glazewm CLI directly
+# Test glazewm directly
 glazewm query monitors
 glazewm query windows
 
-# Check for error messages
+# Check for errors
 glazewm query monitors 2>&1
 ```
 
 - **High CPU usage**
 
 ```bash
-# Increase refresh rate to reduce CPU load
-glazewm-debug --refresh-rate 5000
+# Reduce refresh frequency
+glazewm-debug --refresh-rate 2000
 
 # Use quiet mode
-glazewm-debug --quiet --refresh-rate 2000
+glazewm-debug --quiet
 ```
 
 ### Debug Mode
 
-Enable debug logging for troubleshooting:
-
 ```bash
-# Full debug output
+# Enable debug logging
 RUST_LOG=debug glazewm-debug
 
-# CLI-specific debugging
-RUST_LOG=glazewm_debug::cli=trace glazewm-debug
-
-# Save debug output to file
+# Save debug output
 RUST_LOG=debug glazewm-debug 2> debug.log
 ```
 
@@ -292,51 +229,48 @@ RUST_LOG=debug glazewm-debug 2> debug.log
 
 **Optimal Refresh Rates:**
 
-- **Development/Debugging**: 500-1000ms
+- **Development**: 500-1000ms
 - **General Use**: 1000-2000ms  
 - **Background Monitoring**: 5000ms+
-- **High-Activity Periods**: 250-500ms
 
 **Memory Usage:**
 
-- Normal usage: ~10-20MB RAM
-- With large window counts: ~50MB RAM
-- Memory growth indicates a bug (please report)
+- Normal: ~10-20MB RAM
+- Large setups: ~50MB RAM
+- Memory growth indicates bugs (report issues)
 
 ## Integration with Other Tools
 
-### Piping Output (Future Feature)
+### Future Features
+
+**JSON Output:**
 
 ```bash
-# Export current state as JSON
+# Export state as JSON (planned)
 glazewm-debug --output json > state.json
 
-# Monitor for specific windows
-glazewm-debug --output json | jq '.windows[] | select(.title | contains("Chrome"))'
-
-# CSV export for analysis
-glazewm-debug --output csv > window_history.csv
+# CSV export for analysis (planned)
+glazewm-debug --output csv > history.csv
 ```
 
-### Scripting Usage
+**Pipe Integration:**
 
 ```bash
-# Check if specific window is focused
-glazewm-debug --quiet --output json | jq -r '.windows[] | select(.hasFocus) | .title'
+# Monitor specific windows (planned)
+glazewm-debug --output json | jq '.windows[] | select(.title | contains("VS Code"))'
 
-# Count windows per workspace
+# Window count analysis (planned)  
 glazewm-debug --output json | jq '.workspaces[] | {name: .name, count: (.windows | length)}'
 ```
 
-### Configuration Files (Future Feature)
+### Configuration (Future)
 
 ```toml
-# ~/.config/glazewm-debug.toml
+# ~/.config/glazewm-debug.toml (planned)
 [display]
 refresh_rate_ms = 1000
 compact_mode = false
 show_hidden_windows = true
-theme = "default"
 
 [cli]
 glazewm_path = "glazewm"
@@ -345,12 +279,12 @@ timeout_ms = 5000
 [keybindings]
 quit = ["q", "Escape"]
 refresh = ["r", "F5"]
-help = ["?", "h"]
+help = ["?"]
 ```
 
 ## Related Documentation
 
-- **[← Back to README](../README.md)** - Project overview and quick start
+- **[← Back to README](../README.md)** - Project overview
 - **[Display Format](DISPLAY.md)** - Visual output interpretation
 - **[API Integration](API.md)** - glazewm command details
 - **[Building](BUILDING.md)** - Build and setup instructions

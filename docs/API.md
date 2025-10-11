@@ -8,11 +8,12 @@ This document describes how glazewm-debug integrates with glazewm through its co
 
 glazewm-debug uses a **CLI-first approach** for maximum simplicity:
 
-```
+```text
 glazewm-debug → tokio::process::Command → glazewm query → JSON Response → serde Parse
 ```
 
 **Strategic Benefits:**
+
 - **Zero Dependencies**: No IPC libraries or native bindings
 - **Version Independence**: Works with any glazewm version supporting JSON output
 - **Process Isolation**: Complete separation from glazewm runtime
@@ -46,16 +47,19 @@ glazewm query windows
 glazewm provides a **three-level focus system**:
 
 ### System-Wide Window Focus
+
 - Only **one window** has `"hasFocus": true` at any time
 - Represents the window receiving keyboard input
 - Independent of workspace/monitor active states
 
 ### Workspace Active State  
+
 - **Per-monitor active workspace**: Each monitor has one active workspace
 - Controls workspace visibility and window placement
 - Multiple active workspaces can exist (one per monitor)
 
 ### Monitor Active State
+
 - **Single active monitor**: Only one monitor has `"hasFocus": true`
 - Determines where new windows open by default
 - Affects window manager behavior and user focus
@@ -207,6 +211,7 @@ impl MockWindowManagerClient {
 ### JSON Fixture Testing
 
 **Test with Real Data:**
+
 ```bash
 # Capture real responses for testing
 glazewm query monitors > tests/fixtures/monitors_real.json
@@ -214,6 +219,7 @@ glazewm query windows > tests/fixtures/windows_real.json
 ```
 
 **Use in Tests:**
+
 ```rust
 #[test]
 fn should_parse_real_glazewm_response() {
@@ -226,6 +232,7 @@ fn should_parse_real_glazewm_response() {
 ### Error Scenario Testing
 
 **Common Failure Cases:**
+
 - Command not found (`glazewm` not in PATH)
 - Invalid JSON response (malformed data)
 - Timeout (glazewm hangs)
@@ -234,6 +241,7 @@ fn should_parse_real_glazewm_response() {
 ### Performance Considerations
 
 **CLI Execution Optimization:**
+
 - Parallel queries when possible
 - Response caching for repeated calls
 - Timeout handling for reliability
@@ -250,6 +258,7 @@ Adding support for other window managers requires only:
 3. **Client Implementation**: New struct implementing `WindowManagerClient` trait
 
 Example:
+
 ```rust
 // i3 support would be:
 struct I3Client { /* ... */ }
