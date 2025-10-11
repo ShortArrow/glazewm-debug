@@ -1,118 +1,67 @@
 # Building glazewm-debug
 
-This article covers building glazewm-debug from source, including development environment setup and troubleshooting common issues.
+This document covers building glazewm-debug from source and setting up the development environment.
 
 ## Overview
 
-glazewm-debug follows standard Rust conventions with **minimal external dependencies**. The CLI+JSON approach eliminates complex platform-specific integrations, making the build process straightforward and the codebase highly portable.
+glazewm-debug follows standard Rust conventions with **minimal external dependencies**. The CLI+JSON approach eliminates complex platform-specific integrations.
 
-**Key Architectural Benefits:**
+**Key Benefits:**
 
-- **Platform-Agnostic Core**: JSON parsing is identical across all platforms
-- **Minimal Dependencies**: No IPC libraries, native bindings, or complex integrations
-- **Simple Testing**: Easy to mock JSON responses for testing
-- **Future Extensibility**: Adding support for other window managers requires only JSON schema mapping
+- **Platform-Agnostic Core**: JSON parsing identical across platforms
+- **Minimal Dependencies**: No IPC libraries or native bindings
+- **Simple Testing**: Easy JSON response mocking
+- **Cross-Compilation**: No platform-specific code to handle
 
 ## Prerequisites
 
 ### System Requirements
 
-**Current Target Platform:**
+**Current Platform:**
 
-- **Windows**: 10 (1903+) or 11 (for glazewm compatibility)
-- **Architecture**: x86_64 (amd64)
+- Windows 10 (1903+) or 11
+- x86_64 architecture
 
 **Hardware:**
 
-- **Memory**: 256MB minimum, 1GB recommended for development
-- **Storage**: 50MB for binary, 200MB for full development environment
-
-**Future Platform Support:**
-> The JSON-based architecture is inherently platform-agnostic. The core parsing and UI logic will work on any platform that can:
->
-> 1. Execute command-line tools
-> 2. Parse JSON responses
-> 3. Run terminal applications
->
-> This includes Linux, macOS, and other Unix-like systems when paired with compatible window managers.
+- Memory: 256MB minimum, 1GB for development
+- Storage: 50MB for binary, 200MB for development
 
 ### Required Software
 
 #### Rust Toolchain
 
-The project requires Rust 1.70.0 or newer with the stable toolchain.
+```bash
+# Install Rust (all platforms)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-**Installation:**
-
-```powershell
-# Download and run rustup installer
-Invoke-WebRequest -Uri "https://win.rustup.rs/" -OutFile "rustup-init.exe"
-.\rustup-init.exe
+# Windows alternative
+# Download from https://rustup.rs/
 
 # Verify installation
-rustc --version
+rustc --version  # Requires 1.70.0+
 cargo --version
-```
 
-**Required Components:**
-
-```bash
+# Install components
 rustup component add rustfmt clippy
 ```
 
 #### glazewm
 
-glazewm must be installed and available in PATH.
-
-**Via Package Manager (Recommended):**
-
-```powershell
-winget install glzr-io.glazewm
-```
-
-**Manual Installation:**
-
-1. Download binary from [glazewm releases](https://github.com/glzr-io/glazewm/releases)
-2. Extract to directory in PATH (e.g., `C:\Program Files\glazewm\`)
-3. Verify installation:
-
-   ```cmd
-   glazewm --version
-   ```
-
-**From Source:**
+**Windows:**
 
 ```bash
-git clone https://github.com/glzr-io/glazewm.git
-cd glazewm
-# Follow glazewm's build instructions
-```
+# Via winget (recommended)
+winget install glzr-io.glazewm
 
-### Optional Dependencies
-
-#### Development Tools
-
-**Git:**
-
-```powershell
-winget install Git.Git
-```
-
-**Text Editor:**
-
-```powershell
-# VS Code with Rust extension
-winget install Microsoft.VisualStudioCode
-
-# Alternative: Notepad++
-winget install Notepad++.Notepad++
+# Verify installation
+glazewm --version
+glazewm query monitors  # Test JSON output
 ```
 
 ## Building
 
 ### Quick Build
-
-For users who want to build and run immediately:
 
 ```bash
 git clone https://github.com/username/glazewm-debug.git
@@ -123,34 +72,29 @@ cargo build --release
 
 ### Development Build
 
-For contributors and developers:
-
 ```bash
-# Clone repository
+# Clone and setup
 git clone https://github.com/username/glazewm-debug.git
 cd glazewm-debug
 
-# Verify dependencies
+# Verify environment
 cargo check
 
-# Run test suite
+# Run tests (all should pass without glazewm)
 cargo test
 
-# Build in debug mode
+# Development build
 cargo build
 
-# Run from source
-cargo run
+# Run with debug logging
+RUST_LOG=debug cargo run
 ```
 
 ### Build Variants
 
 **Debug Build (Default):**
 
-- Fast compilation
-- Debug symbols included
-- Optimizations disabled
-- Larger binary size
+- Fast compilation, debug symbols, larger binary
 
 ```bash
 cargo build
@@ -158,417 +102,188 @@ cargo build
 
 **Release Build:**
 
-- Slower compilation
-- Debug symbols stripped
-- Full optimizations
-- Smaller binary size
+- Full optimization, smaller binary
 
 ```bash
 cargo build --release
 ```
 
-**Development Build with Checks:**
+**Development Pipeline:**
 
 ```bash
-# Complete development pipeline
-cargo clippy --all-targets --all-features -- -D warnings
-cargo fmt --all
-cargo test
-cargo build
+cargo fmt --check    # Format check
+cargo clippy         # Lint check  
+cargo test          # Test execution
+cargo build         # Compilation
 ```
 
 ## Configuration
 
-### Build Configuration
-
-The build can be customized through `Cargo.toml` and environment variables.
-
-#### Cargo Features
-
-Currently, no optional features are defined. Future versions may include:
-
-- `gui-mode` - Optional GUI interface
-- `extended-logging` - Verbose logging support
-- `plugin-system` - Plugin architecture
-
-#### Environment Variables
+### Environment Variables
 
 **Rust Compiler:**
 
 ```bash
-# Enable debug assertions in release builds
-set RUSTFLAGS="-C debug-assertions"
+# Windows (PowerShell)
+$env:RUSTFLAGS="-C target-cpu=native"
 
-# Target-specific compilation
-set CARGO_BUILD_TARGET="x86_64-pc-windows-msvc"
+# Unix (bash/zsh)  
+export RUSTFLAGS="-C target-cpu=native"
 ```
 
 **Application Runtime:**
 
 ```bash
-# Logging configuration
+# Logging level
 set RUST_LOG="glazewm_debug=debug"
 
-# Disable color output
+# Disable colors
 set NO_COLOR="1"
 ```
 
 ### Cross Compilation
 
-The JSON-based architecture makes cross-compilation much simpler since there are **no platform-specific dependencies** in the core logic.
-
-**Supported Cross-Compilation:**
+The JSON-based architecture enables simple cross-compilation:
 
 ```bash
 # Windows from Linux/macOS
 rustup target add x86_64-pc-windows-msvc
 cargo build --target x86_64-pc-windows-msvc
 
-# Linux from Windows/macOS
+# Linux from Windows/macOS  
 rustup target add x86_64-unknown-linux-gnu
 cargo build --target x86_64-unknown-linux-gnu
 
-# macOS from Linux/Windows (requires macOS SDK)
+# macOS from Linux/Windows
 rustup target add x86_64-apple-darwin
 cargo build --target x86_64-apple-darwin
 ```
-
-**Benefits of JSON Approach:**
-
-- No native libraries to cross-compile
-- No platform-specific APIs
-- Only standard Rust dependencies
-- Terminal UI works across all platforms
 
 ## Testing
 
 ### Test Categories
 
-**Unit Tests:**
+**Unit Tests**: Domain logic, JSON parsing
 
 ```bash
-# Test individual components
 cargo test --lib
-
-# Test specific module
-cargo test domain::monitor
 ```
 
-**Integration Tests:**
+**Integration Tests**: CLI client, end-to-end workflows
 
 ```bash
-# Test glazewm integration
 cargo test --test integration
+```
 
-# Requires running glazewm instance
+**Live Tests**: Real glazewm integration (optional)
+
+```bash
 cargo test --test glazewm_live
 ```
 
-**Documentation Tests:**
+### Development Testing
 
 ```bash
-# Test code examples in documentation
-cargo test --doc
-```
+# Quick test cycle
+cargo test domain::           # Fast unit tests
+cargo test --test json_parse  # JSON parsing tests
 
-### Test Configuration
+# Full test suite
+cargo test
 
-**Running Specific Tests:**
-
-```bash
-# Filter by name pattern
-cargo test monitor_should_
-
-# Run ignored tests
-cargo test -- --ignored
-
-# Single-threaded execution
-cargo test -- --test-threads=1
-```
-
-**Test Output:**
-
-```bash
-# Capture stdout/stderr
+# Test with coverage
 cargo test -- --nocapture
-
-# Show test execution time
-cargo test -- --report-time
-```
-
-## Static Analysis
-
-### Code Quality
-
-**Linting:**
-
-```bash
-# Basic linting
-cargo clippy
-
-# Strict linting for CI
-cargo clippy --all-targets --all-features -- -D warnings
-
-# Fix automatic issues
-cargo clippy --fix
-```
-
-**Formatting:**
-
-```bash
-# Check formatting
-cargo fmt --check
-
-# Apply formatting
-cargo fmt
-
-# Format with options
-cargo fmt -- --config hard_tabs=true
-```
-
-### Security Analysis
-
-**Dependency Audit:**
-
-```bash
-# Install audit tool
-cargo install cargo-audit
-
-# Check for known vulnerabilities
-cargo audit
-
-# Generate audit report
-cargo audit --format json > audit-report.json
-```
-
-**License Compliance:**
-
-```bash
-# Install license checker
-cargo install cargo-license
-
-# Check dependency licenses
-cargo license
-```
-
-## Performance
-
-### Binary Size Optimization
-
-**Release Profile Tuning:**
-
-Add to `Cargo.toml`:
-
-```toml
-[profile.release]
-opt-level = "z"    # Optimize for size
-lto = true         # Enable link-time optimization
-codegen-units = 1  # Reduce parallel code generation
-panic = "abort"    # Reduce panic handling overhead
-strip = true       # Strip debug symbols
-```
-
-**Runtime Performance:**
-
-```bash
-# Profile release build
-cargo build --release
-perf record ./target/release/glazewm-debug.exe
-perf report
-```
-
-### Memory Usage
-
-**Heap Profiling:**
-
-```bash
-# Using application verifier (Windows)
-# Or custom memory tracking in debug builds
-set RUST_LOG="glazewm_debug::memory=trace"
-cargo run
 ```
 
 ## Troubleshooting
 
 ### Common Build Issues
 
-#### Rust Toolchain Problems
-
-**Symptom**: `rustc` not found
-
-```bash
-# Verify PATH includes Cargo bin directory
-echo $env:PATH | Select-String ".cargo"
-
-# Reinstall toolchain
-rustup self uninstall
-# Reinstall rustup
-```
-
-**Symptom**: Compilation errors with dependencies
+**Rust Toolchain:**
 
 ```bash
 # Update toolchain
 rustup update
 
-# Clean build cache
-cargo clean
-
-# Force dependency update
-cargo update
+# Clean and rebuild
+cargo clean && cargo build
 ```
 
-#### glazewm Integration Issues
-
-**Symptom**: glazewm not found in PATH
+**glazewm Integration:**
 
 ```bash
-# Check glazewm installation
-where glazewm
+# Verify glazewm works
+where glazewm           # Windows
+which glazewm           # Unix
 glazewm --version
+glazewm query windows
 
 # Add to PATH if needed
-$env:PATH += ";C:\Program Files\glazewm"
+$env:PATH += ";C:\Program Files\glazewm"  # Windows
+export PATH=$PATH:/usr/local/bin          # Unix
 ```
 
-**Symptom**: Permission denied accessing glazewm
+**Compilation Errors:**
 
 ```bash
-# Run as administrator
-# Or check glazewm service status
-sc query GlazeWM
-```
-
-#### Windows-Specific Issues
-
-**Symptom**: Windows Defender blocking compilation
-
-```bash
-# Add exclusion for project directory
-Add-MpPreference -ExclusionPath "C:\path\to\glazewm-debug"
-```
-
-**Symptom**: Long path issues
-
-```powershell
-# Enable long path support (requires admin)
-New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
-  -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD
-```
-
-### Build Performance Issues
-
-**Slow Compilation:**
-
-```bash
-# Parallel compilation
-set CARGO_BUILD_JOBS=4
-
-# Use faster linker
-cargo install lld
-set RUSTFLAGS="-C link-arg=-fuse-ld=lld"
-
-# Incremental compilation (debug builds)
-set CARGO_INCREMENTAL=1
-```
-
-**High Memory Usage:**
-
-```bash
-# Reduce parallel units
-export CARGO_BUILD_JOBS=1
-
-# Disable incremental compilation
-export CARGO_INCREMENTAL=0
+# Common fixes
+cargo update          # Update dependencies
+cargo clean          # Clear build cache
+rustup update         # Update Rust version
 ```
 
 ### Runtime Issues
 
-#### Application Startup
-
-**Symptom**: glazewm-debug fails to start
+**Application Startup:**
 
 ```bash
-# Check dependencies
-ldd target/release/glazewm-debug.exe  # On WSL
-dumpbin /dependents target/release/glazewm-debug.exe  # Windows
+# Debug mode
+RUST_LOG=debug cargo run
 
-# Enable debug logging
-set RUST_LOG=debug
-cargo run
+# Test glazewm connectivity
+glazewm query monitors
 ```
 
-**Symptom**: Cannot connect to glazewm
+**Terminal Display:**
 
 ```bash
-# Verify glazewm is running
-tasklist | findstr glazewm
-
-# Test manual query
-glazewm query windows
-```
-
-#### Terminal Compatibility
-
-**Symptom**: Display corruption or encoding issues
-
-```bash
-# Set UTF-8 encoding
+# UTF-8 encoding (Windows)
 chcp 65001
 
-# Use Windows Terminal (recommended)
-winget install Microsoft.WindowsTerminal
-
-# Set environment variables
+# Terminal compatibility
 $env:TERM="xterm-256color"
 ```
 
 ## Packaging
 
-### Binary Distribution
-
-**Standalone Executable:**
+### Release Build
 
 ```bash
-# Build optimized release
+# Optimized release
 cargo build --release
 
 # Verify binary
 ./target/release/glazewm-debug.exe --version
 
-# Package with dependencies (if any)
-# Currently no external runtime dependencies
+# Size optimization (optional)
+strip target/release/glazewm-debug  # Unix only
 ```
 
-**Installer Creation:**
+### Distribution
 
 ```bash
-# Using cargo-wix (Windows Installer)
+# Windows installer (optional)
 cargo install cargo-wix
-cargo wix init
 cargo wix
+
+# Cross-platform packages
+cargo install cargo-dist
+cargo dist build
 ```
 
-### Development Environment
-
-**Portable Setup:**
-
-```bash
-# Create development bundle
-mkdir glazewm-debug-dev
-cp -r src/ glazewm-debug-dev/
-cp Cargo.toml glazewm-debug-dev/
-cp README.md glazewm-debug-dev/
-
-# Include build script
-echo "cargo build && cargo test" > glazewm-debug-dev/build.bat
-```
-
-## CI/CD Integration
+## CI/CD
 
 ### GitHub Actions
-
-**Multi-Platform Pipeline:**
 
 ```yaml
 name: Build and Test
@@ -579,8 +294,9 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
@@ -588,58 +304,57 @@ jobs:
         toolchain: stable
         components: rustfmt, clippy
     
-    - name: Format Check
-      run: cargo fmt --check
-    
-    - name: Lint
-      run: cargo clippy -- -D warnings
-    
-    - name: Test (JSON parsing is platform-agnostic)
-      run: cargo test
-    
-    - name: Build Release
-      run: cargo build --release
-
-  cross-compile:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [x86_64-pc-windows-msvc, x86_64-apple-darwin, x86_64-unknown-linux-gnu]
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        target: ${{ matrix.target }}
-    
-    - name: Cross Build
-      run: cargo build --release --target ${{ matrix.target }}
+    - run: cargo fmt --check
+    - run: cargo clippy -- -D warnings  
+    - run: cargo test
+    - run: cargo build --release
 ```
 
 ### Local Development
 
-**Pre-commit Hooks:**
+```bash
+# Pre-commit checks
+cargo fmt && cargo clippy && cargo test
+
+# Performance check
+cargo build --release
+time ./target/release/glazewm-debug --help
+```
+
+## Development Environment
+
+### Recommended Tools
+
+**Editor**: VS Code with rust-analyzer
+**Terminal**: Windows Terminal (Windows) or Alacritty (cross-platform)
+**Debugging**: Built-in Rust debugging with VS Code
+
+### Project Setup
 
 ```bash
-# Install pre-commit framework
-pip install pre-commit
+# Setup workspace
+git clone https://github.com/username/glazewm-debug.git
+cd glazewm-debug
 
-# Add to .pre-commit-config.yaml
-# Then install hooks
+# Install pre-commit hooks (optional)
+pip install pre-commit
 pre-commit install
+
+# Verify setup
+cargo check
+cargo test
 ```
 
 ## Related Documentation
 
-- **[← Back to README](../README.md)** - Project overview and quick start
-- **[Usage Guide](USAGE.md)** - Detailed CLI options and controls
-- **[API Integration](API.md)** - glazewm CLI integration details
-- **[Architecture](ARCHITECTURE.md)** - Design principles and structure
+- **[← Back to README](../README.md)** - Project overview
+- **[Usage Guide](USAGE.md)** - CLI options and controls
+- **[API Integration](API.md)** - glazewm integration details
+- **[Architecture](ARCHITECTURE.md)** - Design principles
 - **[Contributing](CONTRIBUTE.md)** - Development workflow
 
 ## External References
 
-- [The Rust Programming Language](https://doc.rust-lang.org/book/) - Rust fundamentals
-- [Cargo Book](https://doc.rust-lang.org/cargo/) - Build system documentation
-- [glazewm Documentation](https://github.com/glzr-io/glazewm) - Target application
-- [Windows Terminal](https://docs.microsoft.com/en-us/windows/terminal/) - Recommended terminal
+- [Rust Programming Language](https://doc.rust-lang.org/book/)
+- [Cargo Book](https://doc.rust-lang.org/cargo/)
+- [glazewm Documentation](https://github.com/glzr-io/glazewm)
