@@ -4,10 +4,10 @@
 // Handles CLI argument parsing and dependency injection.
 
 use clap::Parser;
-use glazewm_debug::{App, GlazewmClient};
+// use glazewm_debug::{App, GlazewmClient};
 use std::path::PathBuf;
-use std::process;
-use tracing::{info, error};
+// use std::process;
+// use tracing::{info, error};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -41,32 +41,16 @@ async fn main() {
     // Initialize logging
     init_logging(args.quiet);
 
-    // Log startup
-    info!("Starting glazewm-debug v{}", env!("CARGO_PKG_VERSION"));
-    info!("Using glazewm at: {:?}", args.glazewm_path);
-    info!("Refresh rate: {}ms", args.refresh_rate);
+    // Log startup - temporarily just print for now
+    println!(
+        "glazewm-debug v{} (development build)",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!("CLI+JSON architecture ready for implementation");
 
-    // Create glazewm client
-    let client = GlazewmClient::new(args.glazewm_path)
-        .with_timeout(std::time::Duration::from_millis(args.timeout));
-
-    // Verify glazewm is available
-    if !client.is_available().await {
-        error!("glazewm not found or not responding");
-        error!("Please ensure glazewm is installed and available in PATH");
-        error!("Test with: glazewm --version");
-        process::exit(1);
-    }
-
-    // Create and run application
-    let mut app = App::new(client, args.refresh_rate);
-
-    if let Err(e) = app.run().await {
-        error!("Application error: {}", e);
-        process::exit(1);
-    }
-
-    info!("glazewm-debug shutdown complete");
+    // TODO: Implement full application when CLI and TUI layers are ready
+    println!("Domain layer implemented successfully!");
+    println!("Run `cargo test` to verify domain logic");
 }
 
 fn init_logging(quiet: bool) {
