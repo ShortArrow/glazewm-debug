@@ -48,6 +48,63 @@ The CLI+JSON approach provides unique architectural benefits:
 - **Extensibility**: New window managers only require JSON schema mapping
 - **Debugging**: Human-readable JSON responses aid development and troubleshooting
 
+### Interface-Driven Design
+
+All external dependencies are abstracted through **trait interfaces** for maximum testability:
+
+#### External System Interfaces
+
+**Window Manager Client Interface:**
+
+```rust
+#[async_trait]
+pub trait WindowManagerClient: Send + Sync {
+    async fn query_monitors(&self) -> Result<Vec<Monitor>, ClientError>;
+    async fn query_windows(&self) -> Result<Vec<Window>, ClientError>;
+    async fn is_available(&self) -> bool;
+}
+```
+
+**Terminal Interface:**
+
+```rust
+pub trait Terminal: Send + Sync {
+    fn size(&self) -> Result<Size, TerminalError>;
+    fn clear(&mut self) -> Result<(), TerminalError>;
+    fn flush(&mut self) -> Result<(), TerminalError>;
+    fn draw(&mut self, content: &str) -> Result<(), TerminalError>;
+}
+```
+
+**Event Source Interface:**
+
+```rust
+#[async_trait] 
+pub trait EventSource: Send + Sync {
+    async fn next_event(&mut self) -> Result<Event, EventError>;
+    fn has_events(&self) -> bool;
+}
+
+#[derive(Debug, Clone)]
+pub enum Event {
+    Key(KeyCode),
+    Resize(Size),
+    Timer,
+    Quit,
+}
+```
+
+**Configuration Interface:**
+
+```rust
+pub trait ConfigProvider: Send + Sync {
+    fn get_refresh_rate(&self) -> u64;
+    fn get_glazewm_path(&self) -> &str;
+    fn is_quiet_mode(&self) -> bool;
+    fn reload(&mut self) -> Result<(), ConfigError>;
+}
+```
+
 ## Component Architecture
 
 ### High-Level Structure
@@ -323,6 +380,219 @@ impl LayoutService {
         monitors: &[Monitor],
         screen_size: Size,
     ) -> Vec<MonitorLayout>;
+}
+```
+
+## Dependency Injection & Testability
+
+### Interface-Driven Design Pattern
+
+All external dependencies are abstracted through **trait interfaces** for maximum testability and following the **Dependency Inversion Principle**:
+
+```rust
+// High-level App depends on abstractions (traits), not concretions
+pub struct App<WM, Term, Events, Cfg> 
+where
+    WM: WindowManagerClient,
+    Term: Terminal,
+    Events: EventSource,
+    Cfg: ConfigProvider,
+{
+    window_manager: WM,
+    terminal: Term,
+    event_source: Events,
+    config: Cfg,
+    // ...
+}
+```
+
+### Mock Implementations for Testing
+
+#### MockWindowManagerClient
+
+```rust
+pub struct MockWindowManagerClient {
+    responses: HashMap<String, String>, // JSON responses
+    call_history: Vec<String>,          // Track calls
+    failure_mode: bool,
+    delay_ms: u64,
+}
+
+impl MockWindowManagerClient {
+    pub fn with_json_responses() -> Self {
+        let mut responses = HashMap::new();
+        responses.insert(
+            "query monitors".to_string(),
+            include_str!("../test_fixtures/monitors.json").to_string()
+        );
+        responses.insert(
+            "query windows".to_string(), 
+            include_str!("../test_fixtures/windows.json").to_string()
+        );
+        
+        Self {
+            responses,
+            call_history: Vec::new(),
+            failure_mode: false,
+            delay_ms: 0,
+        }
+    }
+    
+    pub fn simulate_failure(mut self) -> Self {
+        self.failure_mode = true;
+        self
+    }
+    
+    pub fn with_delay(mut self, delay_ms: u64) -> Self {
+        self.delay_ms = delay_ms;
+        self
+    }
+    
+    pub fn call_history(&self) -> &[String] {
+        &self.call_history
+    }
+}
+```
+
+#### MockTerminal for UI Testing
+
+```rust
+pub struct MockTerminal {
+    buffer: String,
+    size: Size,
+    draw_history: Vec<String>,
+    cursor_position: Position,
+}
+
+impl MockTerminal {
+    pub fn new(width: u16, height: u16) -> Self {
+        Self {
+            buffer: String::new(),
+            size: Size::new(width as u32, height as u32),
+            draw_history: Vec::new(),
+            cursor_position: Position::new(0, 0),
+        }
+    }
+    
+    // Test helpers
+    pub fn last_drawn_content(&self) -> Option<&String> {
+        self.draw_history.last()
+    }
+    
+    pub fn contains_text(&self, text: &str) -> bool {
+        self.buffer.contains(text)
+    }
+    
+    pub fn draw_call_count(&self) -> usize {
+        self.draw_history.len()
+    }
+}
+```
+
+#### MockEventSource for User Input Testing
+
+```rust
+pub struct MockEventSource {
+    event_queue: VecDeque<Event>,
+    auto_events: bool,
+}
+
+impl MockEventSource {
+    pub fn with_events(events: Vec<Event>) -> Self {
+        Self {
+            event_queue: events.into(),
+            auto_events: false,
+        }
+    }
+    
+    pub fn simulate_user_session() -> Self {
+        Self::with_events(vec![
+            Event::Key(KeyCode::Char('r')), // Refresh
+            Event::Timer,                   // Auto refresh
+            Event::Key(KeyCode::Char('q')), // Quit
+        ])
+    }
+    
+    pub fn simulate_navigation() -> Self {
+        Self::with_events(vec![
+            Event::Key(KeyCode::Up),        // Navigate up
+            Event::Key(KeyCode::Down),      // Navigate down
+            Event::Key(KeyCode::Enter),     // Select
+            Event::Key(KeyCode::Escape),    // Back
+        ])
+    }
+}
+```
+
+### Test Scenarios with Mocks
+
+**Application State Management Test:**
+
+```rust
+#[tokio::test]
+async fn should_update_state_when_glazewm_changes() {
+    // Given
+    let initial_monitor = MonitorTestBuilder::new()
+        .with_workspace(WorkspaceTestBuilder::new().with_window_count(1).build())
+        .build();
+        
+    let updated_monitor = MonitorTestBuilder::new() 
+        .with_workspace(WorkspaceTestBuilder::new().with_window_count(3).build())
+        .build();
+
+    let mock_client = MockWindowManagerClient::new()
+        .first_call_returns(vec![initial_monitor])
+        .subsequent_calls_return(vec![updated_monitor]);
+        
+    let mock_terminal = MockTerminal::new(80, 24);
+    let mock_events = MockEventSource::new();
+    let mock_config = MockConfig::default();
+
+    let mut app = App::new(mock_client, mock_terminal, mock_events, mock_config);
+
+    // When
+    app.update_state().await.unwrap();  // First update
+    let initial_count = app.state().total_window_count();
+    
+    app.update_state().await.unwrap();  // Second update  
+    let updated_count = app.state().total_window_count();
+
+    // Then
+    assert_eq!(initial_count, 1);
+    assert_eq!(updated_count, 3);
+    assert_eq!(mock_client.call_count(), 2);
+}
+```
+
+**User Input Handling Test:**
+
+```rust
+#[tokio::test]
+async fn should_handle_keyboard_navigation() {
+    // Given
+    let monitor = MonitorTestBuilder::new()
+        .with_workspace(WorkspaceTestBuilder::new().with_name("WS1").build())
+        .with_workspace(WorkspaceTestBuilder::new().with_name("WS2").focused().build())
+        .build();
+
+    let mock_client = MockWindowManagerClient::with_state(vec![monitor], vec![]);
+    let mock_terminal = MockTerminal::new(80, 24);
+    let mock_events = MockEventSource::with_events(vec![
+        Event::Key(KeyCode::Up),   // Navigate to WS1
+        Event::Key(KeyCode::Down), // Navigate back to WS2
+        Event::Key(KeyCode::Char('q')), // Quit
+    ]);
+    let mock_config = MockConfig::default();
+
+    let mut app = App::new(mock_client, mock_terminal, mock_events, mock_config);
+
+    // When
+    app.run_until_quit().await.unwrap();
+
+    // Then
+    let terminal_content = mock_terminal.last_drawn_content().unwrap();
+    assert!(terminal_content.contains("WS2")); // Final state
+    assert_eq!(mock_events.remaining_events(), 0); // All events processed
 }
 ```
 

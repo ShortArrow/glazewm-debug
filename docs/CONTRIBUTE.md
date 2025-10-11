@@ -95,6 +95,137 @@ impl MockGlazewmClient {
 - UI rendering is terminal-based (cross-platform)
 - No platform-specific APIs to mock
 
+### Testable Design Strategy
+
+**Interface-Driven Architecture:**
+All external dependencies (glazewm CLI, terminal I/O, keyboard input, configuration) are abstracted through trait interfaces, enabling comprehensive testing with mock implementations.
+
+**Key Mockable Components:**
+
+- `WindowManagerClient` trait → Mock with JSON fixtures
+- `Terminal` trait → Mock with captured output verification
+- `EventSource` trait → Mock with scripted user input sequences
+- `ConfigProvider` trait → Mock with test-specific settings
+
+**Testing Approach:**
+
+- **Builder Pattern**: Fluent APIs for creating complex test scenarios
+- **JSON Fixtures**: Real glazewm responses for accurate integration testing
+- **State Simulation**: Time-based testing for lifecycle scenarios  
+- **Error Injection**: Mock failures for resilience testing
+- **Performance Validation**: Large dataset handling with controlled timing
+
+> **Implementation Details**: See `docs/TESTING.md` for concrete examples of mock implementations and test builder patterns.
+
+#### Behavior Testing with Mocks
+
+**User Workflow Testing:**
+
+```rust
+#[tokio::test]
+async fn should_complete_typical_user_workflow() {
+    // Given - User opens app, navigates, then quits
+    let mock_events = MockEventSource::user_workflow(vec![
+        "app_startup",
+        "press_r",      // Force refresh
+        "press_down",   // Navigate down  
+        "press_up",     // Navigate up
+        "press_q",      // Quit
+    ]);
+
+    let mock_terminal = MockTerminal::new(80, 24)
+        .capture_all_draws()
+        .expect_no_errors();
+
+    let app = create_test_app(mock_client, mock_terminal, mock_events);
+
+    // When
+    app.run_complete_session().await.unwrap();
+
+    // Then - Verify expected UI updates
+    let draw_history = mock_terminal.draw_history();
+    assert!(draw_history.len() >= 4); // At least 4 screen updates
+    
+    // Verify navigation worked
+    assert!(draw_history[1].contains("Workspace")); // After refresh
+    assert!(draw_history[2] != draw_history[1]);    // Navigation changed display
+    
+    // Verify clean shutdown
+    assert_eq!(mock_events.remaining_events(), 0);
+}
+```
+
+#### Error Scenario Testing
+
+**System Failure Simulation:**
+
+```rust
+#[tokio::test]
+async fn should_handle_glazewm_timeout() {
+    // Given - glazewm responds slowly
+    let slow_client = MockWindowManagerClient::new()
+        .with_response_delay(Duration::from_secs(10))  // Very slow
+        .with_timeout(Duration::from_secs(5));         // App timeout
+
+    let mock_terminal = MockTerminal::new(80, 24);
+    let app = App::new(slow_client, mock_terminal, ...);
+
+    // When
+    let result = app.update_state().await;
+
+    // Then
+    assert!(result.is_err());
+    assert!(mock_terminal.contains_text("Connection timeout"));
+    assert!(mock_terminal.contains_text("Check glazewm status"));
+}
+
+#[test]
+fn should_recover_from_terminal_resize() {
+    // Given - Terminal is resized during operation
+    let mock_terminal = MockTerminal::new(80, 24)
+        .schedule_resize_to(120, 30) // Simulate resize
+        .then_resize_to(100, 25);
+
+    let app = App::new(..., mock_terminal, ...);
+
+    // When
+    app.handle_resize_events().unwrap();
+
+    // Then
+    let final_content = mock_terminal.last_draw_content();
+    assert!(content_fits_in_size(&final_content, Size::new(100, 25)));
+}
+```
+
+#### JSON Schema Evolution Testing
+
+**Backward Compatibility Testing:**
+
+```rust
+#[test]
+fn should_handle_glazewm_api_changes() {
+    // Test with different JSON schemas
+    let test_cases = vec![
+        ("glazewm_v3.0.json", true),   // Current version
+        ("glazewm_v3.1.json", true),   // Future version (should work)
+        ("glazewm_v2.9.json", false),  // Old version (may fail gracefully)
+    ];
+
+    for (fixture, should_succeed) in test_cases {
+        let json = include_str!(fixture);
+        let result = parse_monitors_response(json);
+        
+        if should_succeed {
+            assert!(result.is_ok(), "Failed to parse {}", fixture);
+        } else {
+            // Should fail gracefully with helpful error
+            assert!(result.is_err());
+            assert!(result.unwrap_err().is_version_incompatible());
+        }
+    }
+}
+```
+
 ## Contributing Guidelines
 
 ### Code Standards
@@ -231,6 +362,155 @@ async fn should_handle_invalid_command() {
     
     let result = client.query_monitors().await;
     assert!(matches!(result, Err(ClientError::CommandNotFound)));
+}
+```
+
+### Mock Strategy Best Practices
+
+#### Test Environment Isolation
+
+**Principle**: Every test should run in complete isolation without external dependencies.
+
+**Implementation:**
+
+```rust
+// Create test environment factory
+pub struct TestEnvironment {
+    pub client: MockWindowManagerClient,
+    pub terminal: MockTerminal,
+    pub events: MockEventSource,
+    pub config: MockConfig,
+}
+
+impl TestEnvironment {
+    // Standard scenarios
+    pub fn single_monitor_setup() -> Self { /* ... */ }
+    pub fn multi_monitor_setup() -> Self { /* ... */ }
+    pub fn empty_desktop_setup() -> Self { /* ... */ }
+    
+    // Error scenarios  
+    pub fn glazewm_unavailable() -> Self { /* ... */ }
+    pub fn network_timeout() -> Self { /* ... */ }
+    pub fn invalid_json_response() -> Self { /* ... */ }
+    
+    // Performance scenarios
+    pub fn large_window_count() -> Self { /* ... */ }
+    pub fn rapid_state_changes() -> Self { /* ... */ }
+}
+
+// Use in tests
+#[tokio::test] 
+async fn test_multi_monitor_navigation() {
+    let env = TestEnvironment::multi_monitor_setup();
+    let app = App::from_test_env(env);
+    // ... test logic
+}
+```
+
+#### State Transition Testing
+
+**Test State Changes Over Time:**
+
+```rust
+#[tokio::test]
+async fn should_track_window_lifecycle() {
+    // Given - Simulate window creation → focus → minimize → close
+    let mock_client = MockWindowManagerClient::new()
+        .at_time(0, empty_desktop_json())
+        .at_time(1000, window_created_json("VS Code"))
+        .at_time(2000, window_focused_json("VS Code"))  
+        .at_time(3000, window_minimized_json("VS Code"))
+        .at_time(4000, window_closed_json("VS Code"));
+
+    let mock_events = MockEventSource::new()
+        .every_second(Event::Timer)
+        .until_time(5000);
+
+    let app = App::new(mock_client, mock_terminal, mock_events, config);
+
+    // When - Run through time sequence
+    let state_history = app.run_with_time_simulation().await.unwrap();
+
+    // Then - Verify state transitions
+    assert_eq!(state_history[0].total_windows(), 0);  // Empty
+    assert_eq!(state_history[1].total_windows(), 1);  // Created
+    assert!(state_history[2].has_focused_window());   // Focused
+    assert!(state_history[3].has_minimized_windows()); // Minimized
+    assert_eq!(state_history[4].total_windows(), 0);  // Closed
+}
+```
+
+#### Performance Testing with Mocks
+
+**Response Time Testing:**
+
+```rust
+#[tokio::test]
+async fn should_meet_performance_requirements() {
+    // Given - Large dataset
+    let large_state = TestStateBuilder::new()
+        .with_monitors(4)
+        .with_workspaces_per_monitor(8)
+        .with_windows_per_workspace(10)  // 320 total windows
+        .build();
+
+    let mock_client = MockWindowManagerClient::from_state(large_state)
+        .with_response_delay(Duration::from_millis(50)); // Realistic delay
+
+    let start_time = std::time::Instant::now();
+
+    // When
+    let app = App::new(mock_client, mock_terminal, mock_events, config);
+    app.update_state().await.unwrap();
+    app.render().unwrap();
+
+    let elapsed = start_time.elapsed();
+
+    // Then - Should handle large datasets efficiently
+    assert!(elapsed < Duration::from_millis(200)); // Total under 200ms
+    assert_eq!(mock_client.call_count(), 2); // Only 2 API calls needed
+}
+```
+
+#### Edge Case Testing
+
+**Boundary Condition Testing:**
+
+```rust
+#[test]
+fn should_handle_edge_cases() {
+    let edge_cases = vec![
+        // Empty responses
+        ("empty_monitors.json", |state| assert_eq!(state.monitors.len(), 0)),
+        
+        // Single item responses  
+        ("single_monitor.json", |state| assert_eq!(state.monitors.len(), 1)),
+        
+        // Maximum realistic sizes
+        ("large_monitor_4k.json", |state| {
+            assert!(state.monitors[0].geometry.size.width >= 3840);
+        }),
+        
+        // Unicode in window titles
+        ("unicode_titles.json", |state| {
+            assert!(state.windows().any(|w| w.title().contains("🚀")));
+        }),
+        
+        // Very long window titles
+        ("long_titles.json", |state| {
+            let longest_title = state.windows()
+                .map(|w| w.title().len())
+                .max()
+                .unwrap_or(0);
+            assert!(longest_title > 100);
+        }),
+    ];
+
+    for (fixture, assertion) in edge_cases {
+        let json = include_str!(fixture);
+        let state = parse_complete_state(json).unwrap();
+        assertion(state);
+    }
 }
 ```
 
