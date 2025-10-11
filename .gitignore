@@ -1,6 +1,59 @@
-# AI
+# AI tools
 AGENTS.md
 CLAUDE.md
 .claude
 .serena
 .kiro
+
+# Rust
+/target/
+Cargo.lock
+
+# IDE
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Logs and debug files
+*.log
+debug*.log
+trace*.log
+
+# Test artifacts
+/tests/fixtures/generated/
+/tests/output/
+coverage/
+*.profraw
+
+# Build artifacts
+*.exe
+*.pdb
+
+# Local configuration
+glazewm-debug.toml
+glazewm-debug.yaml
+.env
+.env.local
+
+# Performance profiles
+*.prof
+perf.data*
+
+# Editor artifacts
+tags
+TAGS
+
+# Backup files
+*~
+.#*
+#*#
+*.bak
+*.tmp
