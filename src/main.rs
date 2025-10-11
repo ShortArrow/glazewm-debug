@@ -71,6 +71,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Application started successfully");
 
+    // Perform initial data load before starting TUI
+    info!("Loading initial glazewm state...");
+    if let Err(e) = update_loop.update_now().await {
+        error!("Failed to load initial state: {}", e);
+        // Continue anyway - TUI will show "No Data" message
+    } else {
+        info!("Initial state loaded successfully");
+    }
+
     // Run both the update loop and TUI concurrently
     let result = select! {
         update_result = update_loop.run() => {

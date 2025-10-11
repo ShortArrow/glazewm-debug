@@ -80,6 +80,21 @@ impl UpdateLoop {
             self.config.refresh_interval
         );
 
+        // Perform initial update immediately
+        debug!("Performing initial update");
+        match self.update_once().await {
+            Ok(()) => {
+                debug!("Initial update successful");
+            }
+            Err(UpdateError::CliError(cli_err)) => {
+                error!("Initial update CLI error: {}", cli_err);
+            }
+            Err(UpdateError::Stopped) => {
+                debug!("Application stopped during initial update");
+                return Ok(());
+            }
+        }
+
         let mut interval_timer = interval(self.config.refresh_interval);
 
         while self.state.is_running().await {
@@ -129,6 +144,11 @@ impl UpdateLoop {
         self.state.update_monitors(monitors).await;
 
         Ok(())
+    }
+
+    /// Perform a single update immediately
+    pub async fn update_now(&self) -> Result<(), UpdateError> {
+        self.update_once().await
     }
 
     /// Get current application state
