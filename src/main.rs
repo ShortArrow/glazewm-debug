@@ -4,10 +4,11 @@
 // Handles CLI argument parsing and dependency injection.
 
 use clap::Parser;
-// use glazewm_debug::{App, GlazewmClient};
+use glazewm_debug::{AppState, TuiApp, UpdateConfig, UpdateLoop};
 use std::path::PathBuf;
-// use std::process;
-// use tracing::{info, error};
+use std::time::Duration;
+use tokio::select;
+use tracing::{error, info};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -34,26 +35,77 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
     let args = Args::parse();
 
     // Initialize logging
     init_logging(args.quiet);
 
-    // Log startup - temporarily just print for now
-    println!(
-        "glazewm-debug v{} (development build)",
+    info!(
+        "Starting glazewm-debug v{} (CLI+JSON architecture)",
         env!("CARGO_PKG_VERSION")
     );
-    println!("CLI+JSON architecture ready for implementation");
 
-    // TODO: Implement full application when CLI and TUI layers are ready
-    println!("Domain layer implemented successfully!");
-    println!("Run `cargo test` to verify domain logic");
+    // Create application state
+    let state = AppState::new();
+
+    // Create update loop configuration
+    let update_config = UpdateConfig {
+        refresh_interval: Duration::from_millis(args.refresh_rate),
+        command_timeout: Duration::from_millis(args.timeout),
+        glazewm_path: args.glazewm_path,
+    };
+
+    // Create update loop
+    let update_loop = UpdateLoop::new(update_config, state.clone());
+
+    // Create TUI application
+    let mut tui_app = match TuiApp::new() {
+        Ok(app) => app,
+        Err(e) => {
+            error!("Failed to initialize TUI: {}", e);
+            return Err(Box::new(e) as Box<dyn std::error::Error>);
+        }
+    };
+
+    info!("Application started successfully");
+
+    // Run both the update loop and TUI concurrently
+    let result = select! {
+        update_result = update_loop.run() => {
+            match update_result {
+                Ok(()) => {
+                    info!("Update loop finished normally");
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Update loop error: {}", e);
+                    Err(Box::new(e) as Box<dyn std::error::Error>)
+                }
+            }
+        }
+        tui_result = tui_app.run(state.clone()) => {
+            match tui_result {
+                Ok(()) => {
+                    info!("TUI finished normally");
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("TUI error: {}", e);
+                    Err(Box::new(e) as Box<dyn std::error::Error>)
+                }
+            }
+        }
+    };
+
+    info!("Application shutting down");
+    result
 }
 
 fn init_logging(quiet: bool) {
+    use tracing_subscriber::FmtSubscriber;
+
     let level = if quiet {
         tracing::Level::ERROR
     } else {
@@ -62,8 +114,10 @@ fn init_logging(quiet: bool) {
             .unwrap_or(tracing::Level::INFO)
     };
 
-    tracing_subscriber::fmt()
+    let subscriber = FmtSubscriber::builder()
         .with_max_level(level)
         .with_target(false)
-        .init();
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 }

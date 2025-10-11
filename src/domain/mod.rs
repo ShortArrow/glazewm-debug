@@ -1,18 +1,18 @@
 // Domain layer module
 // Contains pure business logic with no external dependencies
 
+pub mod errors;
+pub mod monitor;
 pub mod values;
 pub mod window;
 pub mod workspace;
-pub mod monitor;
-pub mod errors;
 
 // Re-export public types
-pub use values::{Position, Size, Rectangle, MonitorId, WorkspaceId, WindowId};
+pub use errors::DomainError;
+pub use monitor::Monitor;
+pub use values::{MonitorId, Position, Rectangle, Size, WindowId, WorkspaceId};
 pub use window::Window;
 pub use workspace::Workspace;
-pub use monitor::Monitor;
-pub use errors::DomainError;
 
 /// Focus state of windows, workspaces, and monitors
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +38,8 @@ pub enum WindowState {
     Floating,
     /// Window is minimized to taskbar
     Minimized,
+    /// Window is fullscreen
+    Fullscreen,
 }
 
 /// Display state of windows and workspaces
