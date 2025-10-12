@@ -171,7 +171,7 @@ impl Renderer {
             .iter()
             .map(|monitor| {
                 if monitor.workspaces().is_empty() {
-                    Constraint::Min(5) // Minimal height for empty monitors
+                    Constraint::Length(5) // Exact minimal height for empty monitors
                 } else {
                     let empty_count = monitor
                         .workspaces()
@@ -180,9 +180,9 @@ impl Renderer {
                         .count();
                     let filled_count = monitor.workspaces().len() - empty_count;
 
-                    // Calculate height: filled workspaces get more space, empty get minimal
-                    let estimated_height = (filled_count * 8) + (empty_count * 3) + 2; // Monitor border
-                    Constraint::Min(estimated_height as u16)
+                    // Calculate exact height: no extra space
+                    let estimated_height = (filled_count * 5) + (empty_count * 3) + 2; // Monitor border
+                    Constraint::Length(estimated_height as u16)
                 }
             })
             .collect();
@@ -250,11 +250,11 @@ impl Renderer {
             .iter()
             .map(|workspace| {
                 if workspace.windows().is_empty() {
-                    Constraint::Min(3) // Minimal height for empty workspaces (border + empty text)
+                    Constraint::Length(3) // Exact minimal height for empty workspaces (border + empty text)
                 } else {
                     let window_count = workspace.windows().len();
-                    let estimated_height = window_count * 4 + 2; // Estimate per window + workspace border
-                    Constraint::Min(estimated_height as u16)
+                    let estimated_height = window_count * 3 + 2; // Exact per window (3) + workspace border (2)
+                    Constraint::Length(estimated_height as u16) // Use Length instead of Min for exact sizing
                 }
             })
             .collect();
@@ -330,7 +330,7 @@ impl Renderer {
         let window_constraints: Vec<Constraint> = workspace
             .windows()
             .iter()
-            .map(|_| Constraint::Min(3)) // Each window needs at least 3 lines (title + content line + border)
+            .map(|_| Constraint::Length(3)) // Minimal height per window (title bar + content line + border)
             .collect();
 
         let window_chunks = Layout::default()
@@ -391,10 +391,8 @@ impl Renderer {
             percentage
         );
 
-        // Create content for the window - truncate title and state to fit
+        // Create compact content for the window - combine title and state in one line
         let available_width = area.width.saturating_sub(4) as usize; // minus borders and padding
-        let truncated_title =
-            TextWidthCalculator::truncate_to_width(window.title(), available_width);
 
         let state_text = format!(
             "{} {}x{}",
@@ -403,9 +401,16 @@ impl Renderer {
             window.geometry().size.height
         );
 
+        // Combine title and state in one line with separator
+        let combined_text = format!("{} | {}", window.title(), state_text);
+        let truncated_combined =
+            TextWidthCalculator::truncate_to_width(&combined_text, available_width);
+
         let window_content = vec![
-            Line::from(truncated_title),
-            Line::from(Span::styled(state_text, Style::default().fg(Color::Gray))), // Basic gray
+            Line::from(Span::styled(
+                truncated_combined,
+                Style::default().fg(Color::Gray),
+            )), // Single line with both info
         ];
 
         let window_title_spans = Line::from(Span::styled(window_title, window_style));
