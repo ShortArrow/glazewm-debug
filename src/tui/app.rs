@@ -4,6 +4,7 @@
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
+    style::SetAttribute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
@@ -33,6 +34,9 @@ pub struct TuiApp {
 impl TuiApp {
     /// Create a new TUI application
     pub fn new() -> Result<Self, TuiError> {
+        // Force color support detection
+        std::env::remove_var("NO_COLOR");
+        
         // Setup terminal
         enable_raw_mode()?;
         let mut stdout = io::stdout();

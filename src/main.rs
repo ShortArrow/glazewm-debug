@@ -4,7 +4,12 @@
 // Handles CLI argument parsing and dependency injection.
 
 use clap::Parser;
+use crossterm::{
+    execute,
+    style::{Color, Print, ResetColor, SetForegroundColor},
+};
 use glazewm_debug::{AppState, TuiApp, UpdateConfig, UpdateLoop};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::select;
@@ -17,6 +22,10 @@ use tracing::{error, info};
     version
 )]
 struct Args {
+    /// Color test mode - test terminal color support with crossterm
+    #[arg(long)]
+    color_test: bool,
+
     /// Refresh interval in milliseconds
     #[arg(short, long, default_value = "1000")]
     refresh_rate: u64,
@@ -42,6 +51,12 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
     let args = Args::parse();
+
+    // Handle color test mode
+    if args.color_test {
+        test_colors().await?;
+        return Ok(());
+    }
 
     // Initialize logging
     init_logging(args.quiet);
@@ -119,6 +134,77 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Application shutting down");
     result
+}
+
+async fn test_colors() -> Result<(), Box<dyn std::error::Error>> {
+    let mut stdout = io::stdout();
+
+    println!("=== Crossterm Color Test ===");
+    println!();
+
+    // Test basic colors available in crossterm
+    let colors = [
+        (Color::Red, "Red"),
+        (Color::Green, "Green"), 
+        (Color::Yellow, "Yellow"),
+        (Color::Blue, "Blue"),
+        (Color::Magenta, "Magenta"),
+        (Color::Cyan, "Cyan"),
+        (Color::Grey, "Grey"),
+        (Color::DarkGrey, "DarkGrey"),
+        (Color::White, "White"),
+        (Color::Black, "Black"),
+    ];
+
+    println!("Basic 16 colors:");
+    for (color, name) in &colors {
+        execute!(
+            stdout,
+            SetForegroundColor(*color),
+            Print(format!("{:12} ", name)),
+            ResetColor
+        )?;
+    }
+    println!();
+    println!();
+
+    // Test RGB colors (what we tried to use)
+    println!("RGB colors:");
+    let rgb_colors = [
+        (Color::Rgb { r: 255, g: 0, b: 0 }, "RGB Red"),
+        (Color::Rgb { r: 0, g: 255, b: 0 }, "RGB Green"),
+        (Color::Rgb { r: 255, g: 255, b: 0 }, "RGB Yellow"), 
+        (Color::Rgb { r: 0, g: 0, b: 255 }, "RGB Blue"),
+        (Color::Rgb { r: 255, g: 0, b: 255 }, "RGB Magenta"),
+        (Color::Rgb { r: 0, g: 255, b: 255 }, "RGB Cyan"),
+    ];
+
+    for (color, name) in &rgb_colors {
+        execute!(
+            stdout,
+            SetForegroundColor(*color),
+            Print(format!("{:12} ", name)),
+            ResetColor
+        )?;
+    }
+    println!();
+    println!();
+
+    // Test the specific colors we're trying to use in the app
+    println!("App colors:");
+    execute!(stdout, SetForegroundColor(Color::Red), Print("Active Monitor (Red) "), ResetColor)?;
+    execute!(stdout, SetForegroundColor(Color::Blue), Print("Inactive Monitor (Blue) "), ResetColor)?;
+    execute!(stdout, SetForegroundColor(Color::Green), Print("Active Workspace (Green) "), ResetColor)?;
+    execute!(stdout, SetForegroundColor(Color::Grey), Print("Inactive Workspace (Grey) "), ResetColor)?;
+    execute!(stdout, SetForegroundColor(Color::Magenta), Print("Focused Window (Magenta) "), ResetColor)?;
+    execute!(stdout, SetForegroundColor(Color::Cyan), Print("Normal Window (Cyan)"), ResetColor)?;
+    println!();
+    println!();
+
+    println!("If you see colors above, the issue is in ratatui rendering, not crossterm.");
+    println!("If you see only white/gray text, the issue is in crossterm/terminal support.");
+
+    Ok(())
 }
 
 fn init_logging(quiet: bool) {

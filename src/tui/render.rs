@@ -24,11 +24,11 @@ impl Renderer {
         Self
     }
 
-    /// Get monitor style based on focus state (for testing)
+    /// Get monitor style based on focus state (for testing)  
     pub fn get_monitor_style(is_focused: bool) -> Style {
         if is_focused {
             Style::default()
-                .fg(Color::LightGreen)
+                .fg(Color::Red) // Use red for active monitor (highly visible)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Blue)
@@ -39,10 +39,10 @@ impl Renderer {
     pub fn get_workspace_style(is_focused: bool) -> Style {
         if is_focused {
             Style::default()
-                .fg(Color::LightYellow)
+                .fg(Color::Green) // Use green for active workspace
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(Color::Gray)
         }
     }
 
@@ -50,10 +50,10 @@ impl Renderer {
     pub fn get_window_style(is_focused: bool) -> Style {
         if is_focused {
             Style::default()
-                .fg(Color::LightYellow)
+                .fg(Color::Magenta) // Use magenta for focused window
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::LightBlue)
+            Style::default().fg(Color::Cyan)
         }
     }
 
@@ -127,7 +127,7 @@ impl Renderer {
                 Block::default()
                     .borders(Borders::ALL)
                     .title("glazewm State Viewer")
-                    .style(Style::default().fg(Color::Blue)),
+                    .style(Style::default().fg(Color::Blue)), // Basic blue
             );
 
         frame.render_widget(header, area);
@@ -154,12 +154,12 @@ impl Renderer {
         ];
 
         let no_data = Paragraph::new(no_data_text)
-            .style(Style::default().fg(Color::Yellow))
+            .style(Style::default().fg(Color::LightMagenta)) // Use magenta instead of yellow
             .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .title("No Data")
-                    .style(Style::default().fg(Color::Yellow)),
+                    .style(Style::default().fg(Color::LightMagenta)), // Use magenta instead of yellow
             );
 
         frame.render_widget(no_data, area);
@@ -202,7 +202,7 @@ impl Renderer {
         let outer_block = Block::default()
             .borders(Borders::ALL)
             .title("Monitors & Workspaces (Detailed)")
-            .style(Style::default().fg(Color::Blue));
+            .style(Style::default().fg(Color::Blue)); // Basic blue
 
         frame.render_widget(outer_block, area);
     }
@@ -232,7 +232,7 @@ impl Renderer {
         if monitor.workspaces().is_empty() {
             // Monitor with no workspaces
             let empty_text = Paragraph::new("No workspaces")
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default().fg(Color::Gray)) // Basic gray
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -300,7 +300,7 @@ impl Renderer {
         if workspace.windows().is_empty() {
             // Empty workspace
             let empty_text = Paragraph::new("(Empty)")
-                .style(Style::default().fg(Color::Gray))
+                .style(Style::default().fg(Color::Gray)) // Basic gray
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -386,7 +386,7 @@ impl Renderer {
 
         let window_content = vec![
             Spans::from(truncated_title),
-            Spans::from(Span::styled(state_text, Style::default().fg(Color::Gray))),
+            Spans::from(Span::styled(state_text, Style::default().fg(Color::Gray))), // Basic gray
         ];
 
         let window_paragraph = Paragraph::new(window_content).style(window_style).block(
@@ -824,29 +824,29 @@ mod tests {
     fn should_apply_correct_colors_for_focus_states() {
         // Monitor colors
         let focused_monitor_style = Renderer::get_monitor_style(true);
-        assert_eq!(focused_monitor_style.fg, Some(Color::LightGreen));
+        assert_eq!(focused_monitor_style.fg, Some(Color::LightGreen)); // Light green
         assert!(focused_monitor_style.add_modifier.contains(Modifier::BOLD));
 
         let unfocused_monitor_style = Renderer::get_monitor_style(false);
-        assert_eq!(unfocused_monitor_style.fg, Some(Color::Blue));
+        assert_eq!(unfocused_monitor_style.fg, Some(Color::Blue)); // Blue
         assert!(!unfocused_monitor_style.add_modifier.contains(Modifier::BOLD));
 
         // Workspace colors
         let focused_workspace_style = Renderer::get_workspace_style(true);
-        assert_eq!(focused_workspace_style.fg, Some(Color::LightYellow));
+        assert_eq!(focused_workspace_style.fg, Some(Color::Magenta)); // Magenta
         assert!(focused_workspace_style.add_modifier.contains(Modifier::BOLD));
 
         let unfocused_workspace_style = Renderer::get_workspace_style(false);
-        assert_eq!(unfocused_workspace_style.fg, Some(Color::DarkGray));
+        assert_eq!(unfocused_workspace_style.fg, Some(Color::Gray)); // Gray
         assert!(!unfocused_workspace_style.add_modifier.contains(Modifier::BOLD));
 
         // Window colors
         let focused_window_style = Renderer::get_window_style(true);
-        assert_eq!(focused_window_style.fg, Some(Color::LightYellow));
+        assert_eq!(focused_window_style.fg, Some(Color::LightMagenta)); // Light magenta
         assert!(focused_window_style.add_modifier.contains(Modifier::BOLD));
 
         let unfocused_window_style = Renderer::get_window_style(false);
-        assert_eq!(unfocused_window_style.fg, Some(Color::LightBlue));
+        assert_eq!(unfocused_window_style.fg, Some(Color::LightBlue)); // Light blue
         assert!(!unfocused_window_style.add_modifier.contains(Modifier::BOLD));
     }
 
@@ -856,9 +856,9 @@ mod tests {
         let focused_workspace = Renderer::get_workspace_style(true);
         let focused_window = Renderer::get_window_style(true);
         
-        // Both focused workspace and window should use LightYellow
+        // Both focused workspace and window should use RGB yellow
         assert_eq!(focused_workspace.fg, focused_window.fg);
-        assert_eq!(focused_workspace.fg, Some(Color::LightYellow));
+        assert_eq!(focused_workspace.fg, Some(Color::Magenta));
 
         // Both should be bold
         assert!(focused_workspace.add_modifier.contains(Modifier::BOLD));
