@@ -185,7 +185,7 @@ impl Renderer {
                         }
                     }
 
-                    Constraint::Min(total_height as u16)
+                    Constraint::Length(total_height as u16) // Use exact calculated height
                 }
             })
             .collect();
