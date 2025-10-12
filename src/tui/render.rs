@@ -168,7 +168,8 @@ impl Renderer {
             );
 
             let base_width = TextWidthCalculator::display_width(&base_text);
-            let remaining_width = 60_usize.saturating_sub(base_width);
+            let monitor_width = (area.width as usize).saturating_sub(4); // Terminal width minus outer borders
+            let remaining_width = monitor_width.saturating_sub(base_width);
             let monitor_header = format!("{}{}┐", base_text, "─".repeat(remaining_width));
 
             // Debug information for Unicode width
@@ -203,7 +204,8 @@ impl Renderer {
                 // Workspace as box per enhanced spec
                 let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
                 let workspace_width = TextWidthCalculator::display_width(&workspace_text);
-                let header_padding = 52_usize.saturating_sub(workspace_width); // Fill workspace header width
+                let workspace_inner_width = monitor_width.saturating_sub(6); // Monitor width minus borders and padding
+                let header_padding = workspace_inner_width.saturating_sub(workspace_width).saturating_sub(4); // Account for "┌─ ─┐"
 
                 let workspace_top =
                     format!("│ ┌─ {} {}─┐ │", workspace_text, "─".repeat(header_padding));
@@ -220,7 +222,7 @@ impl Renderer {
                 // Windows layout - equal-width boxes that fill parent
                 if !workspace.windows().is_empty() {
                     let window_count = workspace.windows().len();
-                    let available_width = 58_usize; // Parent container width minus borders
+                    let available_width = workspace_inner_width.saturating_sub(4); // Workspace width minus inner borders
                     let spaces_between = window_count.saturating_sub(1); // Spaces between boxes
                     let total_box_width = available_width.saturating_sub(spaces_between);
                     let box_width = total_box_width / window_count; // Equal width per box
@@ -315,7 +317,7 @@ impl Renderer {
                 }
 
                 // Workspace bottom border
-                let workspace_bottom = format!("│ └{}┘ │", "─".repeat(52));
+                let workspace_bottom = format!("│ └{}┘ │", "─".repeat(workspace_inner_width));
                 items.push(ListItem::new(Spans::from(Span::styled(
                     workspace_bottom,
                     workspace_style,
@@ -325,8 +327,8 @@ impl Renderer {
                 items.push(ListItem::new(Spans::from("")));
             }
 
-            // Monitor bottom border with fixed width
-            let bottom_border = format!("└{}┘", "─".repeat(58)); // Match monitor header width
+            // Monitor bottom border with dynamic width
+            let bottom_border = format!("└{}┘", "─".repeat(monitor_width));
             items.push(ListItem::new(Spans::from(Span::styled(
                 bottom_border,
                 monitor_style,
@@ -414,7 +416,8 @@ impl Renderer {
             // Workspace as box per spec (for side-by-side view)
             let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
             let workspace_width = TextWidthCalculator::display_width(&workspace_text);
-            let header_padding = 20_usize.saturating_sub(workspace_width); // Smaller width for side-by-side
+            let monitor_inner_width = (area.width as usize).saturating_sub(4); // Area width minus borders
+            let header_padding = monitor_inner_width.saturating_sub(workspace_width).saturating_sub(4); // Account for "┌─ ─┐"
 
             let workspace_top = format!("┌─ {} {}─┐", workspace_text, "─".repeat(header_padding));
 
@@ -498,8 +501,8 @@ impl Renderer {
                 }
             }
 
-            // Workspace bottom border
-            let workspace_bottom = format!("└{}┘", "─".repeat(22)); // Match workspace width
+            // Workspace bottom border  
+            let workspace_bottom = format!("└{}┘", "─".repeat(monitor_inner_width));
             items.push(ListItem::new(Spans::from(Span::styled(
                 workspace_bottom,
                 workspace_style,
