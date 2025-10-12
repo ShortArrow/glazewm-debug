@@ -81,15 +81,10 @@ impl Window {
         format!("{}: {}", self.process_name, self.title)
     }
 
-    /// Generate truncated display name for compact UI
+    /// Generate truncated display name for compact UI (Unicode-aware)
     pub fn display_name_truncated(&self, max_len: usize) -> String {
-        let full_name = self.display_name();
-        if full_name.len() <= max_len {
-            full_name
-        } else {
-            let truncated = &full_name[..max_len.saturating_sub(3)];
-            format!("{}...", truncated)
-        }
+        use crate::utils::text_width::TextWidthCalculator;
+        TextWidthCalculator::truncate_to_width(&self.display_name(), max_len)
     }
 
     /// Get state indicator for display ([T], [F], [M], [H])

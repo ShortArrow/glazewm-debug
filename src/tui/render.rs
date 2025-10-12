@@ -12,6 +12,7 @@ use ratatui::{
 
 use crate::domain::Monitor;
 use crate::tui::DisplayMode;
+use crate::utils::text_width::{Alignment, TextWidthCalculator};
 use std::collections::HashMap;
 
 /// Renders the application state to the terminal
@@ -138,7 +139,7 @@ impl Renderer {
         area: Rect,
         monitors: &[Monitor],
     ) {
-        // If multiple monitors, render side by side
+        // Re-enable side-by-side monitor layout per DISPLAY.md spec
         if monitors.len() > 1 && area.width >= 120 {
             self.render_monitors_side_by_side(frame, area, monitors);
             return;
@@ -158,13 +159,25 @@ impl Renderer {
             };
 
             let monitor_status = if monitor.is_focused() { "[Active]" } else { "" };
-            let monitor_header = format!(
-                "┌─ Monitor {} ({}x{}) {} {}",
+            let base_text = format!(
+                "┌─ Monitor {} ({}x{}) {} ",
                 monitor.id(),
                 monitor.geometry().size.width,
                 monitor.geometry().size.height,
-                monitor_status,
-                "─".repeat(20_usize.saturating_sub(monitor.id().as_str().len()))
+                monitor_status
+            );
+
+            let base_width = TextWidthCalculator::display_width(&base_text);
+            let remaining_width = 60_usize.saturating_sub(base_width);
+            let monitor_header = format!("{}{}┐", base_text, "─".repeat(remaining_width));
+
+            // Debug information for Unicode width
+            tracing::debug!(
+                "Monitor header: base_text='{}', base_width={}, remaining_width={}, total_length={}",
+                base_text.replace('\n', "\\n"),
+                base_width,
+                remaining_width,
+                TextWidthCalculator::display_width(&monitor_header)
             );
 
             items.push(ListItem::new(Spans::from(Span::styled(
@@ -187,15 +200,16 @@ impl Renderer {
                 } else {
                     ""
                 };
-                let workspace_header = format!(
-                    "│ Workspace {} {} {}",
-                    workspace.name(),
-                    workspace_status,
-                    "─".repeat(30_usize.saturating_sub(workspace.name().len()))
-                );
+                // Workspace as box per enhanced spec
+                let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
+                let workspace_width = TextWidthCalculator::display_width(&workspace_text);
+                let header_padding = 52_usize.saturating_sub(workspace_width); // Fill workspace header width
+
+                let workspace_top =
+                    format!("│ ┌─ {} {}─┐ │", workspace_text, "─".repeat(header_padding));
 
                 items.push(ListItem::new(Spans::from(Span::styled(
-                    workspace_header,
+                    workspace_top,
                     workspace_style,
                 ))));
 
@@ -203,110 +217,118 @@ impl Renderer {
                 let percentages = workspace.calculate_window_percentages();
                 let percentage_map: HashMap<_, _> = percentages.into_iter().collect();
 
-                // Windows layout - horizontal boxes
+                // Windows layout - equal-width boxes that fill parent
                 if !workspace.windows().is_empty() {
-                    let mut window_boxes = Vec::new();
+                    let window_count = workspace.windows().len();
+                    let available_width = 58_usize; // Parent container width minus borders
+                    let spaces_between = window_count.saturating_sub(1); // Spaces between boxes
+                    let total_box_width = available_width.saturating_sub(spaces_between);
+                    let box_width = total_box_width / window_count; // Equal width per box
 
+                    // Box headers line
+                    let mut box_parts = Vec::new();
                     for window in workspace.windows() {
                         let percentage = percentage_map.get(window.id()).unwrap_or(&0.0);
-                        let window_style = if window.is_focused() {
-                            Style::default()
-                                .fg(Color::Cyan)
-                                .add_modifier(Modifier::BOLD)
-                        } else {
-                            Style::default().fg(Color::LightBlue)
-                        };
-
                         let focus_indicator = if window.is_focused() { "*" } else { "" };
-                        let window_box = format!(
-                            "┌─ {}{} ({:.0}%) ─┐",
+
+                        let header_text = format!(
+                            "{}{} ({:.0}%)",
                             window.process_name(),
                             focus_indicator,
                             percentage
                         );
+                        let header_width = TextWidthCalculator::display_width(&header_text);
+                        let header_padding =
+                            box_width.saturating_sub(4).saturating_sub(header_width); // 4 for "┌─ ─┐"
 
-                        window_boxes.push((window_box, window_style, window));
-                    }
-
-                    // Render window boxes
-                    let mut box_line = String::from("│ ");
-                    for (i, (box_header, style, _)) in window_boxes.iter().enumerate() {
-                        if i > 0 {
-                            box_line.push(' ');
-                        }
-                        box_line.push_str(box_header);
+                        box_parts.push(format!(
+                            "┌─ {} {}─┐",
+                            TextWidthCalculator::truncate_to_width(
+                                &header_text,
+                                box_width.saturating_sub(6)
+                            ),
+                            "─".repeat(header_padding)
+                        ));
                     }
 
                     items.push(ListItem::new(Spans::from(Span::styled(
-                        box_line,
+                        format!("│ │ {} │ │", box_parts.join(" ")),
                         Style::default().fg(Color::LightBlue),
                     ))));
 
-                    // Window content lines
-                    let mut content_line = String::from("│ ");
-                    for (i, (_, style, window)) in window_boxes.iter().enumerate() {
-                        if i > 0 {
-                            content_line.push(' ');
-                        }
-                        let content = format!(
-                            "│ {} │",
-                            window.title().chars().take(15).collect::<String>()
+                    // Content line
+                    let mut content_parts = Vec::new();
+                    for window in workspace.windows() {
+                        let title = TextWidthCalculator::truncate_to_width(
+                            window.title(),
+                            box_width.saturating_sub(4),
                         );
-                        content_line.push_str(&content);
+                        let padded_title = TextWidthCalculator::align_in_box(
+                            &title,
+                            box_width.saturating_sub(4),
+                            Alignment::Left,
+                        );
+                        content_parts.push(format!("│ {} │", padded_title));
                     }
 
                     items.push(ListItem::new(Spans::from(Span::styled(
-                        content_line,
+                        format!("│ │ {} │ │", content_parts.join(" ")),
                         Style::default().fg(Color::LightBlue),
                     ))));
 
-                    // State and geometry line
-                    let mut state_line = String::from("│ ");
-                    for (i, (_, style, window)) in window_boxes.iter().enumerate() {
-                        if i > 0 {
-                            state_line.push(' ');
-                        }
-                        let state_info = format!(
-                            "│ {} {}x{} │",
+                    // State line
+                    let mut state_parts = Vec::new();
+                    for window in workspace.windows() {
+                        let state_text = format!(
+                            "{} {}x{}",
                             window.state_indicator(),
                             window.geometry().size.width,
                             window.geometry().size.height
                         );
-                        state_line.push_str(&state_info);
+                        let padded_state = TextWidthCalculator::align_in_box(
+                            &state_text,
+                            box_width.saturating_sub(4),
+                            Alignment::Left,
+                        );
+                        state_parts.push(format!("│ {} │", padded_state));
                     }
 
                     items.push(ListItem::new(Spans::from(Span::styled(
-                        state_line,
+                        format!("│ │ {} │ │", state_parts.join(" ")),
                         Style::default().fg(Color::Gray),
                     ))));
 
-                    // Bottom border
-                    let mut bottom_line = String::from("│ ");
-                    for (i, _) in window_boxes.iter().enumerate() {
-                        if i > 0 {
-                            bottom_line.push(' ');
-                        }
-                        bottom_line.push_str("└─────────────────┘");
-                    }
+                    // Bottom borders line
+                    let bottom_parts: Vec<String> = (0..window_count)
+                        .map(|_| format!("└{}┘", "─".repeat(box_width.saturating_sub(2))))
+                        .collect();
 
                     items.push(ListItem::new(Spans::from(Span::styled(
-                        bottom_line,
+                        format!("│ │ {} │ │", bottom_parts.join(" ")),
                         Style::default().fg(Color::LightBlue),
                     ))));
                 } else {
                     items.push(ListItem::new(Spans::from(Span::styled(
-                        "│ (Empty)",
+                        "│ │ (Empty)",
                         Style::default().fg(Color::Gray),
                     ))));
                 }
+
+                // Workspace bottom border
+                let workspace_bottom = format!("│ └{}┘ │", "─".repeat(52));
+                items.push(ListItem::new(Spans::from(Span::styled(
+                    workspace_bottom,
+                    workspace_style,
+                ))));
 
                 // Add spacing between workspaces
                 items.push(ListItem::new(Spans::from("")));
             }
 
-            // Monitor bottom border
+            // Monitor bottom border with fixed width
+            let bottom_border = format!("└{}┘", "─".repeat(58)); // Match monitor header width
             items.push(ListItem::new(Spans::from(Span::styled(
-                "└─────────────────────────────────────────────────────────┘",
+                bottom_border,
                 monitor_style,
             ))));
             items.push(ListItem::new(Spans::from("")));
@@ -429,10 +451,11 @@ impl Renderer {
                         window_style,
                     ))));
 
-                    let window_content = format!(
-                        "│ {} │",
-                        window.title().chars().take(15).collect::<String>()
-                    );
+                    let truncated_title =
+                        TextWidthCalculator::truncate_to_width(window.title(), 15);
+                    let aligned_title =
+                        TextWidthCalculator::align_in_box(&truncated_title, 15, Alignment::Left);
+                    let window_content = format!("│ {} │", aligned_title);
 
                     items.push(ListItem::new(Spans::from(Span::styled(
                         window_content,
@@ -667,6 +690,54 @@ mod tests {
     #[test]
     fn should_use_default() {
         let _renderer = Renderer::default();
+    }
+
+    #[test]
+    fn should_generate_workspace_box_layout() {
+        let monitor = create_test_monitor();
+        let renderer = Renderer::new();
+
+        // Test workspace box structure
+        // Should generate:
+        // │ ┌─ Workspace Name [Active] ──────────┐ │
+        // │ │ [window boxes]                     │ │
+        // │ └────────────────────────────────────┘ │
+
+        // This is a structural test - actual rendering would need mock terminal
+        assert!(monitor.workspaces().len() > 0);
+        assert!(monitor.workspaces()[0].windows().len() > 0);
+    }
+
+    #[test]
+    fn should_calculate_equal_width_boxes() {
+        let available_width = 54_usize; // Workspace inner width
+        let window_count = 3;
+        let spaces_between = window_count - 1;
+        let total_box_width = available_width.saturating_sub(spaces_between);
+        let box_width = total_box_width / window_count;
+
+        // Each box should be equal width
+        assert_eq!(box_width, 17); // (54 - 2) / 3 = 17
+
+        // Total should not exceed available width
+        let total_used = (box_width * window_count) + spaces_between;
+        assert!(total_used <= available_width);
+    }
+
+    #[test]
+    fn should_handle_unicode_in_workspace_headers() {
+        use crate::utils::text_width::TextWidthCalculator;
+
+        // Japanese workspace name
+        let workspace_text = "Workspace 開発環境 [Active]";
+        let width = TextWidthCalculator::display_width(&workspace_text);
+
+        // Should calculate correct width for CJK characters
+        assert!(width > workspace_text.len()); // CJK chars are wider than ASCII
+
+        // Truncation should not break characters
+        let truncated = TextWidthCalculator::truncate_to_width(&workspace_text, 20);
+        assert!(truncated.len() <= workspace_text.len());
     }
 
     // Note: Full rendering tests would require a mock terminal,

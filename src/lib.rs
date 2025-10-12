@@ -7,6 +7,7 @@ pub mod app;
 pub mod cli;
 pub mod domain;
 pub mod tui;
+pub mod utils;
 // pub mod config;
 
 // Re-export commonly used types
