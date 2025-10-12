@@ -36,7 +36,7 @@ impl TuiApp {
     pub fn new() -> Result<Self, TuiError> {
         // Force color support detection
         std::env::remove_var("NO_COLOR");
-        
+
         // Setup terminal
         enable_raw_mode()?;
         let mut stdout = io::stdout();

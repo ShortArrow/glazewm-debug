@@ -1,8 +1,8 @@
 // Domain-specific error types
 // Represents business rule violations and invalid state transitions
 
+use crate::domain::{MonitorId, WindowId, WorkspaceId};
 use thiserror::Error;
-use crate::domain::{WindowId, WorkspaceId, MonitorId};
 
 #[derive(Debug, Error)]
 pub enum DomainError {
@@ -19,9 +19,9 @@ pub enum DomainError {
     DuplicateWorkspaceId { id: WorkspaceId },
 
     #[error("Invalid window state transition from {from:?} to {to:?}")]
-    InvalidStateTransition { 
-        from: crate::domain::WindowState, 
-        to: crate::domain::WindowState 
+    InvalidStateTransition {
+        from: crate::domain::WindowState,
+        to: crate::domain::WindowState,
     },
 
     #[error("Invalid geometry: width and height must be positive")]

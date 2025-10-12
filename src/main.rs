@@ -145,7 +145,7 @@ async fn test_colors() -> Result<(), Box<dyn std::error::Error>> {
     // Test basic colors available in crossterm
     let colors = [
         (Color::Red, "Red"),
-        (Color::Green, "Green"), 
+        (Color::Green, "Green"),
         (Color::Yellow, "Yellow"),
         (Color::Blue, "Blue"),
         (Color::Magenta, "Magenta"),
@@ -173,10 +173,31 @@ async fn test_colors() -> Result<(), Box<dyn std::error::Error>> {
     let rgb_colors = [
         (Color::Rgb { r: 255, g: 0, b: 0 }, "RGB Red"),
         (Color::Rgb { r: 0, g: 255, b: 0 }, "RGB Green"),
-        (Color::Rgb { r: 255, g: 255, b: 0 }, "RGB Yellow"), 
+        (
+            Color::Rgb {
+                r: 255,
+                g: 255,
+                b: 0,
+            },
+            "RGB Yellow",
+        ),
         (Color::Rgb { r: 0, g: 0, b: 255 }, "RGB Blue"),
-        (Color::Rgb { r: 255, g: 0, b: 255 }, "RGB Magenta"),
-        (Color::Rgb { r: 0, g: 255, b: 255 }, "RGB Cyan"),
+        (
+            Color::Rgb {
+                r: 255,
+                g: 0,
+                b: 255,
+            },
+            "RGB Magenta",
+        ),
+        (
+            Color::Rgb {
+                r: 0,
+                g: 255,
+                b: 255,
+            },
+            "RGB Cyan",
+        ),
     ];
 
     for (color, name) in &rgb_colors {
@@ -192,12 +213,42 @@ async fn test_colors() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test the specific colors we're trying to use in the app
     println!("App colors:");
-    execute!(stdout, SetForegroundColor(Color::Red), Print("Active Monitor (Red) "), ResetColor)?;
-    execute!(stdout, SetForegroundColor(Color::Blue), Print("Inactive Monitor (Blue) "), ResetColor)?;
-    execute!(stdout, SetForegroundColor(Color::Green), Print("Active Workspace (Green) "), ResetColor)?;
-    execute!(stdout, SetForegroundColor(Color::Grey), Print("Inactive Workspace (Grey) "), ResetColor)?;
-    execute!(stdout, SetForegroundColor(Color::Magenta), Print("Focused Window (Magenta) "), ResetColor)?;
-    execute!(stdout, SetForegroundColor(Color::Cyan), Print("Normal Window (Cyan)"), ResetColor)?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Red),
+        Print("Active Monitor (Red) "),
+        ResetColor
+    )?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Blue),
+        Print("Inactive Monitor (Blue) "),
+        ResetColor
+    )?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Green),
+        Print("Active Workspace (Green) "),
+        ResetColor
+    )?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Grey),
+        Print("Inactive Workspace (Grey) "),
+        ResetColor
+    )?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Magenta),
+        Print("Focused Window (Magenta) "),
+        ResetColor
+    )?;
+    execute!(
+        stdout,
+        SetForegroundColor(Color::Cyan),
+        Print("Normal Window (Cyan)"),
+        ResetColor
+    )?;
     println!();
     println!();
 

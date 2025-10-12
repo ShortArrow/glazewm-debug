@@ -171,9 +171,9 @@ mod tests {
     #[test]
     fn rectangle_should_contain_points() {
         let rect = Rectangle::from_coords(10, 10, 100, 100);
-        
+
         assert!(rect.contains_point(Position::new(50, 50))); // Inside
-        assert!(!rect.contains_point(Position::new(5, 5)));   // Outside
+        assert!(!rect.contains_point(Position::new(5, 5))); // Outside
         assert!(!rect.contains_point(Position::new(150, 150))); // Outside
     }
 

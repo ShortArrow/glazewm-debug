@@ -58,12 +58,7 @@ impl Renderer {
     }
 
     /// Render the application state to the given frame
-    pub fn render(
-        &self,
-        frame: &mut Frame,
-        monitors: &[Monitor],
-        mode: DisplayMode,
-    ) {
+    pub fn render(&self, frame: &mut Frame, monitors: &[Monitor], mode: DisplayMode) {
         let size = frame.area();
 
         // Create main layout
@@ -166,12 +161,7 @@ impl Renderer {
     }
 
     /// Render the list of monitors and their workspaces (detailed mode) using proper ratatui layouts
-    fn render_monitors_detailed(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        monitors: &[Monitor],
-    ) {
+    fn render_monitors_detailed(&self, frame: &mut Frame, area: Rect, monitors: &[Monitor]) {
         if monitors.is_empty() {
             return;
         }
@@ -219,14 +209,9 @@ impl Renderer {
     }
 
     /// Render a single monitor using proper ratatui layout
-    fn render_single_monitor_with_layout(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        monitor: &Monitor,
-    ) {
+    fn render_single_monitor_with_layout(&self, frame: &mut Frame, area: Rect, monitor: &Monitor) {
         let monitor_style = Self::get_monitor_style(monitor.is_focused());
-        
+
         // Debug: log the actual color being used
         tracing::debug!("Monitor {} style: {:?}", monitor.id(), monitor_style);
 
@@ -309,9 +294,13 @@ impl Renderer {
         workspace: &Workspace,
     ) {
         let workspace_style = Self::get_workspace_style(workspace.is_focused());
-        
-        // Debug: log the actual color being used  
-        tracing::debug!("Workspace {} style: {:?}", workspace.name(), workspace_style);
+
+        // Debug: log the actual color being used
+        tracing::debug!(
+            "Workspace {} style: {:?}",
+            workspace.name(),
+            workspace_style
+        );
 
         let workspace_status = if workspace.is_focused() {
             " [Active]"
@@ -388,7 +377,7 @@ impl Renderer {
         percentage_map: &HashMap<crate::domain::values::WindowId, f64>,
     ) {
         let window_style = Self::get_window_style(window.is_focused());
-        
+
         // Debug: log the actual color being used
         tracing::debug!("Window {} style: {:?}", window.process_name(), window_style);
 
@@ -431,12 +420,7 @@ impl Renderer {
     }
 
     /// Render multiple monitors side by side
-    fn render_monitors_side_by_side(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        monitors: &[Monitor],
-    ) {
+    fn render_monitors_side_by_side(&self, frame: &mut Frame, area: Rect, monitors: &[Monitor]) {
         // Create horizontal layout for monitors
         let monitor_count = monitors.len();
         let constraints: Vec<Constraint> = (0..monitor_count)
@@ -455,12 +439,7 @@ impl Renderer {
     }
 
     /// Render a single monitor in detailed mode
-    fn render_single_monitor_detailed(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        monitor: &Monitor,
-    ) {
+    fn render_single_monitor_detailed(&self, frame: &mut Frame, area: Rect, monitor: &Monitor) {
         let mut items = Vec::new();
 
         let monitor_style = if monitor.is_focused() {
@@ -608,12 +587,7 @@ impl Renderer {
     }
 
     /// Render monitors in compact tree-style mode
-    fn render_monitors_compact(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        monitors: &[Monitor],
-    ) {
+    fn render_monitors_compact(&self, frame: &mut Frame, area: Rect, monitors: &[Monitor]) {
         let mut items = Vec::new();
 
         for (monitor_idx, monitor) in monitors.iter().enumerate() {
@@ -860,16 +834,22 @@ mod tests {
 
         let unfocused_monitor_style = Renderer::get_monitor_style(false);
         assert_eq!(unfocused_monitor_style.fg, Some(Color::Blue)); // Blue
-        assert!(!unfocused_monitor_style.add_modifier.contains(Modifier::BOLD));
+        assert!(!unfocused_monitor_style
+            .add_modifier
+            .contains(Modifier::BOLD));
 
         // Workspace colors
         let focused_workspace_style = Renderer::get_workspace_style(true);
         assert_eq!(focused_workspace_style.fg, Some(Color::Green)); // Green
-        assert!(focused_workspace_style.add_modifier.contains(Modifier::BOLD));
+        assert!(focused_workspace_style
+            .add_modifier
+            .contains(Modifier::BOLD));
 
         let unfocused_workspace_style = Renderer::get_workspace_style(false);
         assert_eq!(unfocused_workspace_style.fg, Some(Color::Gray)); // Gray
-        assert!(!unfocused_workspace_style.add_modifier.contains(Modifier::BOLD));
+        assert!(!unfocused_workspace_style
+            .add_modifier
+            .contains(Modifier::BOLD));
 
         // Window colors
         let focused_window_style = Renderer::get_window_style(true);
@@ -886,7 +866,7 @@ mod tests {
         // Focused elements should use consistent colors
         let focused_workspace = Renderer::get_workspace_style(true);
         let focused_window = Renderer::get_window_style(true);
-        
+
         // Focused workspace should use Green, focused window should use Magenta (different colors)
         assert_ne!(focused_workspace.fg, focused_window.fg);
         assert_eq!(focused_workspace.fg, Some(Color::Green));
@@ -902,7 +882,7 @@ mod tests {
         let monitor_focused = Renderer::get_monitor_style(true);
         let workspace_focused = Renderer::get_workspace_style(true);
         let window_focused = Renderer::get_window_style(true);
-        
+
         let monitor_unfocused = Renderer::get_monitor_style(false);
         let workspace_unfocused = Renderer::get_workspace_style(false);
         let window_unfocused = Renderer::get_window_style(false);

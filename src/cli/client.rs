@@ -1,10 +1,10 @@
 // Glazewm CLI client implementation
 // Handles execution of glazewm commands and response processing
 
-use std::path::PathBuf;
-use std::time::Duration;
 use async_trait::async_trait;
 use serde_json::Value;
+use std::path::PathBuf;
+use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -38,12 +38,12 @@ impl RealGlazewmClient {
     /// Execute a glazewm query command
     async fn execute_query(&self, query_type: &str) -> Result<Value, CliError> {
         let command_str = format!("{} query {}", self.glazewm_path.display(), query_type);
-        
+
         // Log the command we're trying to execute
         tracing::debug!("Executing command: {}", command_str);
         tracing::debug!("Glazewm path: {:?}", self.glazewm_path);
         tracing::debug!("Command timeout: {:?}", self.command_timeout);
-        
+
         // Create command
         let mut cmd = Command::new(&self.glazewm_path);
         cmd.args(&["query", query_type]);
@@ -89,7 +89,11 @@ impl RealGlazewmClient {
     /// Validate that the response has the expected structure
     fn validate_response(&self, response: &Value) -> Result<(), CliError> {
         // Check for success field
-        if !response.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if !response
+            .get("success")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             return Err(CliError::InvalidJsonSchema {
                 field: "success".to_string(),
             });
@@ -130,9 +134,11 @@ impl DemoGlazewmClient {
     }
 
     fn get_demo_data(&self) -> Value {
-        let window_count = self.window_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let window_count = self
+            .window_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let focused_window = window_count % 4; // Rotate focus every 4 updates
-        
+
         serde_json::json!({
             "success": true,
             "data": {
@@ -298,10 +304,7 @@ mod tests {
 
     #[test]
     fn should_create_client_with_parameters() {
-        let client = RealGlazewmClient::new(
-            PathBuf::from("glazewm"),
-            Duration::from_secs(5),
-        );
+        let client = RealGlazewmClient::new(PathBuf::from("glazewm"), Duration::from_secs(5));
 
         assert_eq!(client.glazewm_path, PathBuf::from("glazewm"));
         assert_eq!(client.command_timeout, Duration::from_secs(5));
@@ -309,10 +312,7 @@ mod tests {
 
     #[test]
     fn should_validate_successful_response() {
-        let client = RealGlazewmClient::new(
-            PathBuf::from("glazewm"),
-            Duration::from_secs(5),
-        );
+        let client = RealGlazewmClient::new(PathBuf::from("glazewm"), Duration::from_secs(5));
 
         let valid_response = serde_json::json!({
             "success": true,
@@ -325,10 +325,7 @@ mod tests {
 
     #[test]
     fn should_reject_invalid_response() {
-        let client = RealGlazewmClient::new(
-            PathBuf::from("glazewm"),
-            Duration::from_secs(5),
-        );
+        let client = RealGlazewmClient::new(PathBuf::from("glazewm"), Duration::from_secs(5));
 
         let invalid_response = serde_json::json!({
             "success": false,
