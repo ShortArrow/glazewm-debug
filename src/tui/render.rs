@@ -5,7 +5,7 @@ use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
@@ -58,13 +58,13 @@ impl Renderer {
     }
 
     /// Render the application state to the given frame
-    pub fn render<B: Backend>(
+    pub fn render(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         monitors: &[Monitor],
         mode: DisplayMode,
     ) {
-        let size = frame.size();
+        let size = frame.area();
 
         // Create main layout
         let chunks = Layout::default()
@@ -94,9 +94,9 @@ impl Renderer {
     }
 
     /// Render the header with application title and stats
-    fn render_header<B: Backend>(
+    fn render_header(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         monitors: &[Monitor],
         mode: DisplayMode,
@@ -134,7 +134,7 @@ impl Renderer {
     }
 
     /// Render the footer with keyboard shortcuts
-    fn render_footer<B: Backend>(&self, frame: &mut Frame<B>, area: Rect) {
+    fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let footer_text = "q/Esc: Quit | r: Refresh | c: Toggle Mode | Ctrl+C: Force Quit";
 
         let footer = Paragraph::new(footer_text)
@@ -145,12 +145,12 @@ impl Renderer {
     }
 
     /// Render a message when no data is available
-    fn render_no_data<B: Backend>(&self, frame: &mut Frame<B>, area: Rect) {
+    fn render_no_data(&self, frame: &mut Frame, area: Rect) {
         let no_data_text = vec![
-            Spans::from("No monitors found."),
-            Spans::from(""),
-            Spans::from("Make sure glazewm is running and accessible."),
-            Spans::from("Check the glazewm executable path in your configuration."),
+            Line::from("No monitors found."),
+            Line::from(""),
+            Line::from("Make sure glazewm is running and accessible."),
+            Line::from("Check the glazewm executable path in your configuration."),
         ];
 
         let no_data = Paragraph::new(no_data_text)
@@ -166,9 +166,9 @@ impl Renderer {
     }
 
     /// Render the list of monitors and their workspaces (detailed mode) using proper ratatui layouts
-    fn render_monitors_detailed<B: Backend>(
+    fn render_monitors_detailed(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         monitors: &[Monitor],
     ) {
@@ -208,13 +208,16 @@ impl Renderer {
     }
 
     /// Render a single monitor using proper ratatui layout
-    fn render_single_monitor_with_layout<B: Backend>(
+    fn render_single_monitor_with_layout(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         monitor: &Monitor,
     ) {
         let monitor_style = Self::get_monitor_style(monitor.is_focused());
+        
+        // Debug: log the actual color being used
+        tracing::debug!("Monitor {} style: {:?}", monitor.id(), monitor_style);
 
         let monitor_status = if monitor.is_focused() {
             " [Active]"
@@ -231,13 +234,14 @@ impl Renderer {
 
         if monitor.workspaces().is_empty() {
             // Monitor with no workspaces
+            let monitor_title_spans = Line::from(Span::styled(monitor_title, monitor_style));
             let empty_text = Paragraph::new("No workspaces")
                 .style(Style::default().fg(Color::Gray)) // Basic gray
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .title(monitor_title)
-                        .style(monitor_style),
+                        .title(monitor_title_spans)
+                        .border_style(monitor_style),
                 );
 
             frame.render_widget(empty_text, area);
@@ -261,6 +265,16 @@ impl Renderer {
             .margin(1) // Leave space for monitor border
             .split(area);
 
+        // Render monitor border first
+        let monitor_title_spans = Line::from(Span::styled(monitor_title, monitor_style));
+        let monitor_block = Block::default()
+            .borders(Borders::ALL)
+            .title(monitor_title_spans)
+            .border_style(monitor_style);
+
+        frame.render_widget(monitor_block, area);
+
+        // Then render workspaces in the inner area
         for (ws_idx, workspace) in monitor.workspaces().iter().enumerate() {
             if ws_idx < workspace_chunks.len() {
                 self.render_single_workspace_with_layout(
@@ -270,24 +284,19 @@ impl Renderer {
                 );
             }
         }
-
-        // Render monitor border around the entire area
-        let monitor_block = Block::default()
-            .borders(Borders::ALL)
-            .title(monitor_title)
-            .style(monitor_style);
-
-        frame.render_widget(monitor_block, area);
     }
 
     /// Render a single workspace using proper ratatui layout
-    fn render_single_workspace_with_layout<B: Backend>(
+    fn render_single_workspace_with_layout(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         workspace: &Workspace,
     ) {
         let workspace_style = Self::get_workspace_style(workspace.is_focused());
+        
+        // Debug: log the actual color being used  
+        tracing::debug!("Workspace {} style: {:?}", workspace.name(), workspace_style);
 
         let workspace_status = if workspace.is_focused() {
             " [Active]"
@@ -299,13 +308,14 @@ impl Renderer {
 
         if workspace.windows().is_empty() {
             // Empty workspace
+            let workspace_title_spans = Line::from(Span::styled(workspace_title, workspace_style));
             let empty_text = Paragraph::new("(Empty)")
                 .style(Style::default().fg(Color::Gray)) // Basic gray
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .title(workspace_title)
-                        .style(workspace_style),
+                        .title(workspace_title_spans)
+                        .border_style(workspace_style),
                 );
 
             frame.render_widget(empty_text, area);
@@ -332,6 +342,16 @@ impl Renderer {
             .map(|(id, percentage)| (id, percentage as f64))
             .collect();
 
+        // Render workspace border first
+        let workspace_title_spans = Line::from(Span::styled(workspace_title, workspace_style));
+        let workspace_block = Block::default()
+            .borders(Borders::ALL)
+            .title(workspace_title_spans)
+            .border_style(workspace_style);
+
+        frame.render_widget(workspace_block, area);
+
+        // Then render windows in the inner area
         for (win_idx, window) in workspace.windows().iter().enumerate() {
             if win_idx < window_chunks.len() {
                 self.render_single_window_with_layout(
@@ -342,25 +362,20 @@ impl Renderer {
                 );
             }
         }
-
-        // Render workspace border around the entire area
-        let workspace_block = Block::default()
-            .borders(Borders::ALL)
-            .title(workspace_title)
-            .style(workspace_style);
-
-        frame.render_widget(workspace_block, area);
     }
 
     /// Render a single window using proper ratatui layout
-    fn render_single_window_with_layout<B: Backend>(
+    fn render_single_window_with_layout(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         window: &crate::domain::Window,
         percentage_map: &HashMap<crate::domain::values::WindowId, f64>,
     ) {
         let window_style = Self::get_window_style(window.is_focused());
+        
+        // Debug: log the actual color being used
+        tracing::debug!("Window {} style: {:?}", window.process_name(), window_style);
 
         let percentage = percentage_map.get(window.id()).unwrap_or(&0.0);
         let focus_indicator = if window.is_focused() { "*" } else { "" };
@@ -385,24 +400,25 @@ impl Renderer {
         );
 
         let window_content = vec![
-            Spans::from(truncated_title),
-            Spans::from(Span::styled(state_text, Style::default().fg(Color::Gray))), // Basic gray
+            Line::from(truncated_title),
+            Line::from(Span::styled(state_text, Style::default().fg(Color::Gray))), // Basic gray
         ];
 
+        let window_title_spans = Line::from(Span::styled(window_title, window_style));
         let window_paragraph = Paragraph::new(window_content).style(window_style).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(window_title)
-                .style(window_style),
+                .title(window_title_spans)
+                .border_style(window_style),
         );
 
         frame.render_widget(window_paragraph, area);
     }
 
     /// Render multiple monitors side by side
-    fn render_monitors_side_by_side<B: Backend>(
+    fn render_monitors_side_by_side(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         monitors: &[Monitor],
     ) {
@@ -424,9 +440,9 @@ impl Renderer {
     }
 
     /// Render a single monitor in detailed mode
-    fn render_single_monitor_detailed<B: Backend>(
+    fn render_single_monitor_detailed(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         monitor: &Monitor,
     ) {
@@ -474,14 +490,14 @@ impl Renderer {
 
             let workspace_top = format!("┌─ {} {}─┐", workspace_text, "─".repeat(header_padding));
 
-            items.push(ListItem::new(Spans::from(Span::styled(
+            items.push(ListItem::new(Line::from(Span::styled(
                 workspace_top,
                 workspace_style,
             ))));
 
             // Windows in this workspace - box format for side-by-side
             if workspace.windows().is_empty() {
-                items.push(ListItem::new(Spans::from(Span::styled(
+                items.push(ListItem::new(Line::from(Span::styled(
                     "│ (Empty)",
                     Style::default().fg(Color::Gray),
                 ))));
@@ -513,7 +529,7 @@ impl Renderer {
                         TextWidthCalculator::truncate_to_width(&header_text, 15)
                     );
 
-                    items.push(ListItem::new(Spans::from(Span::styled(
+                    items.push(ListItem::new(Line::from(Span::styled(
                         window_info,
                         window_style,
                     ))));
@@ -525,7 +541,7 @@ impl Renderer {
                         TextWidthCalculator::align_in_box(&truncated_title, 13, Alignment::Left);
                     let window_content = format!("│ │ {} │", aligned_title);
 
-                    items.push(ListItem::new(Spans::from(Span::styled(
+                    items.push(ListItem::new(Line::from(Span::styled(
                         window_content,
                         window_style,
                     ))));
@@ -541,13 +557,13 @@ impl Renderer {
                         TextWidthCalculator::align_in_box(&state_text, 13, Alignment::Left);
                     let window_details = format!("│ │ {} │", aligned_state);
 
-                    items.push(ListItem::new(Spans::from(Span::styled(
+                    items.push(ListItem::new(Line::from(Span::styled(
                         window_details,
                         Style::default().fg(Color::Gray),
                     ))));
 
                     // Window bottom border
-                    items.push(ListItem::new(Spans::from(Span::styled(
+                    items.push(ListItem::new(Line::from(Span::styled(
                         "│ └─────────────┘",
                         window_style,
                     ))));
@@ -556,12 +572,12 @@ impl Renderer {
 
             // Workspace bottom border
             let workspace_bottom = format!("└{}┘", "─".repeat(monitor_inner_width));
-            items.push(ListItem::new(Spans::from(Span::styled(
+            items.push(ListItem::new(Line::from(Span::styled(
                 workspace_bottom,
                 workspace_style,
             ))));
 
-            items.push(ListItem::new(Spans::from("")));
+            items.push(ListItem::new(Line::from("")));
         }
 
         let list = List::new(items)
@@ -577,9 +593,9 @@ impl Renderer {
     }
 
     /// Render monitors in compact tree-style mode
-    fn render_monitors_compact<B: Backend>(
+    fn render_monitors_compact(
         &self,
-        frame: &mut Frame<B>,
+        frame: &mut Frame,
         area: Rect,
         monitors: &[Monitor],
     ) {
@@ -610,7 +626,7 @@ impl Renderer {
                 monitor.total_window_count()
             );
 
-            items.push(ListItem::new(Spans::from(Span::styled(
+            items.push(ListItem::new(Line::from(Span::styled(
                 monitor_info,
                 monitor_style,
             ))));
@@ -648,7 +664,7 @@ impl Renderer {
                     workspace.window_count()
                 );
 
-                items.push(ListItem::new(Spans::from(Span::styled(
+                items.push(ListItem::new(Line::from(Span::styled(
                     workspace_info,
                     workspace_style,
                 ))));
@@ -692,7 +708,7 @@ impl Renderer {
                         if window.is_focused() { "(Focused)" } else { "" }
                     );
 
-                    items.push(ListItem::new(Spans::from(Span::styled(
+                    items.push(ListItem::new(Line::from(Span::styled(
                         window_info,
                         window_style,
                     ))));
@@ -701,7 +717,7 @@ impl Renderer {
 
             // Add spacing between monitors
             if !is_last_monitor {
-                items.push(ListItem::new(Spans::from("")));
+                items.push(ListItem::new(Line::from("")));
             }
         }
 
@@ -824,7 +840,7 @@ mod tests {
     fn should_apply_correct_colors_for_focus_states() {
         // Monitor colors
         let focused_monitor_style = Renderer::get_monitor_style(true);
-        assert_eq!(focused_monitor_style.fg, Some(Color::LightGreen)); // Light green
+        assert_eq!(focused_monitor_style.fg, Some(Color::Red)); // Red
         assert!(focused_monitor_style.add_modifier.contains(Modifier::BOLD));
 
         let unfocused_monitor_style = Renderer::get_monitor_style(false);
@@ -833,7 +849,7 @@ mod tests {
 
         // Workspace colors
         let focused_workspace_style = Renderer::get_workspace_style(true);
-        assert_eq!(focused_workspace_style.fg, Some(Color::Magenta)); // Magenta
+        assert_eq!(focused_workspace_style.fg, Some(Color::Green)); // Green
         assert!(focused_workspace_style.add_modifier.contains(Modifier::BOLD));
 
         let unfocused_workspace_style = Renderer::get_workspace_style(false);
@@ -842,11 +858,11 @@ mod tests {
 
         // Window colors
         let focused_window_style = Renderer::get_window_style(true);
-        assert_eq!(focused_window_style.fg, Some(Color::LightMagenta)); // Light magenta
+        assert_eq!(focused_window_style.fg, Some(Color::Magenta)); // Magenta
         assert!(focused_window_style.add_modifier.contains(Modifier::BOLD));
 
         let unfocused_window_style = Renderer::get_window_style(false);
-        assert_eq!(unfocused_window_style.fg, Some(Color::LightBlue)); // Light blue
+        assert_eq!(unfocused_window_style.fg, Some(Color::Cyan)); // Cyan
         assert!(!unfocused_window_style.add_modifier.contains(Modifier::BOLD));
     }
 
@@ -856,9 +872,10 @@ mod tests {
         let focused_workspace = Renderer::get_workspace_style(true);
         let focused_window = Renderer::get_window_style(true);
         
-        // Both focused workspace and window should use RGB yellow
-        assert_eq!(focused_workspace.fg, focused_window.fg);
-        assert_eq!(focused_workspace.fg, Some(Color::Magenta));
+        // Focused workspace should use Green, focused window should use Magenta (different colors)
+        assert_ne!(focused_workspace.fg, focused_window.fg);
+        assert_eq!(focused_workspace.fg, Some(Color::Green));
+        assert_eq!(focused_window.fg, Some(Color::Magenta));
 
         // Both should be bold
         assert!(focused_workspace.add_modifier.contains(Modifier::BOLD));
