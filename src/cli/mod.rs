@@ -5,6 +5,6 @@ pub mod client;
 pub mod errors;
 pub mod parser;
 
-pub use client::{GlazewmClient, RealGlazewmClient};
+pub use client::{DemoGlazewmClient, GlazewmClient, RealGlazewmClient};
 pub use errors::CliError;
 pub use parser::GlazewmParser;

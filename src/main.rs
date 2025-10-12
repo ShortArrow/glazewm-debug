@@ -30,8 +30,12 @@ struct Args {
     glazewm_path: PathBuf,
 
     /// Command timeout in milliseconds
-    #[arg(long, default_value = "5000")]
+    #[arg(long, default_value = "10000")]
     timeout: u64,
+
+    /// Run in demo mode with sample data (no glazewm required)
+    #[arg(long)]
+    demo: bool,
 }
 
 #[tokio::main]
@@ -57,8 +61,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         glazewm_path: args.glazewm_path,
     };
 
-    // Create update loop
-    let update_loop = UpdateLoop::new(update_config, state.clone());
+    // Create update loop (demo mode or real mode)
+    let update_loop = if args.demo {
+        info!("Running in demo mode with sample data");
+        UpdateLoop::new_demo(update_config, state.clone())
+    } else {
+        UpdateLoop::new(update_config, state.clone())
+    };
 
     // Create TUI application
     let mut tui_app = match TuiApp::new() {

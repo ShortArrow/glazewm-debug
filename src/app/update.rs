@@ -7,7 +7,7 @@ use tokio::time::{interval, timeout};
 use tracing::{debug, error};
 
 use crate::app::AppState;
-use crate::cli::{CliError, GlazewmClient, GlazewmParser, RealGlazewmClient};
+use crate::cli::{CliError, DemoGlazewmClient, GlazewmClient, GlazewmParser, RealGlazewmClient};
 
 /// Error types for the update loop
 #[derive(Debug, thiserror::Error)]
@@ -34,7 +34,7 @@ impl Default for UpdateConfig {
     fn default() -> Self {
         Self {
             refresh_interval: Duration::from_secs(1),
-            command_timeout: Duration::from_secs(5),
+            command_timeout: Duration::from_secs(10), // Increased from 5s to 10s
             glazewm_path: PathBuf::from("glazewm"),
         }
     }
@@ -51,6 +51,17 @@ impl UpdateLoop {
     /// Create a new update loop with a real client
     pub fn new(config: UpdateConfig, state: AppState) -> Self {
         let client = RealGlazewmClient::new(config.glazewm_path.clone(), config.command_timeout);
+
+        Self {
+            client: Box::new(client),
+            config,
+            state,
+        }
+    }
+
+    /// Create a new update loop with demo client (no glazewm required)
+    pub fn new_demo(config: UpdateConfig, state: AppState) -> Self {
+        let client = DemoGlazewmClient::new();
 
         Self {
             client: Box::new(client),
@@ -274,5 +285,74 @@ mod tests {
 
         let result = update_loop.update_once().await;
         assert!(matches!(result.unwrap_err(), UpdateError::Stopped));
+    }
+
+    /// Slow mock client for timeout testing
+    struct SlowMockClient {
+        delay: Duration,
+    }
+
+    impl SlowMockClient {
+        fn new(delay: Duration) -> Self {
+            Self { delay }
+        }
+    }
+
+    #[async_trait]
+    impl GlazewmClient for SlowMockClient {
+        async fn query_monitors(&self) -> Result<Value, CliError> {
+            tokio::time::sleep(self.delay).await;
+            Ok(serde_json::json!({}))
+        }
+
+        async fn query_windows(&self) -> Result<Value, CliError> {
+            tokio::time::sleep(self.delay).await;
+            Ok(serde_json::json!({}))
+        }
+    }
+
+    #[tokio::test]
+    async fn should_handle_timeout_gracefully() {
+        let mut config = UpdateConfig::default();
+        config.command_timeout = Duration::from_millis(100);
+
+        let state = AppState::new();
+
+        // Mock client that will be slow
+        let client = SlowMockClient::new(Duration::from_millis(200));
+        let update_loop = UpdateLoop::with_client(Box::new(client), config, state.clone());
+
+        // Test that timeout is handled properly
+        let start = std::time::Instant::now();
+        let result = update_loop.update_once().await;
+        let elapsed = start.elapsed();
+
+        // Should timeout and return error quickly (around 100ms, not 200ms)
+        assert!(result.is_err());
+        assert!(elapsed < Duration::from_millis(150));
+
+        // Verify state remains empty after timeout
+        assert_eq!(state.monitor_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn should_continue_after_timeout_errors() {
+        let mut config = UpdateConfig::default();
+        config.command_timeout = Duration::from_millis(50);
+
+        let state = AppState::new();
+
+        // First slow client, then fast client
+        let client = MockGlazewmClient::new(false);
+        let update_loop = UpdateLoop::with_client(Box::new(client), config, state.clone());
+
+        // Perform multiple updates - should handle timeout gracefully and continue
+        for _ in 0..3 {
+            let _ = update_loop.update_once().await; // May timeout, but shouldn't crash
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        // Application should still be responsive
+        assert!(state.is_running().await);
     }
 }

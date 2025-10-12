@@ -8,6 +8,8 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, Stdout};
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{debug, error};
 
 use crate::app::AppState;
@@ -26,8 +28,6 @@ pub enum DisplayMode {
 pub struct TuiApp {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     renderer: Renderer,
-    input_handler: InputHandler,
-    display_mode: DisplayMode,
 }
 
 impl TuiApp {
@@ -43,27 +43,47 @@ impl TuiApp {
         Ok(Self {
             terminal,
             renderer: Renderer::new(),
-            input_handler: InputHandler::new(),
-            display_mode: DisplayMode::Detailed,
         })
     }
 
-    /// Run the TUI application
-    /// This will block until the user exits (presses 'q')
+    /// Run the TUI application with parallel input handling and rendering
     pub async fn run(&mut self, state: AppState) -> Result<(), TuiError> {
-        debug!("Starting TUI application");
+        debug!("Starting TUI application with parallel processing");
+
+        // Start input handling task
+        let input_state = state.clone();
+        let input_handle =
+            tokio::spawn(async move { Self::handle_input_events(input_state).await });
+
+        // Start rendering loop
+        let render_result = self.render_loop(state.clone()).await;
+
+        // Cancel input handling when rendering loop exits
+        input_handle.abort();
+
+        debug!("TUI application finished");
+        render_result
+    }
+
+    /// Handle input events in a separate task
+    async fn handle_input_events(state: AppState) -> Result<(), TuiError> {
+        let input_handler = InputHandler::new();
+        let mut last_toggle_time = std::time::Instant::now() - Duration::from_millis(500); // Initialize to allow immediate first toggle
+        const DEBOUNCE_DURATION: Duration = Duration::from_millis(200); // 200ms debounce
+
+        debug!("Starting input event handler with debounce");
 
         loop {
-            // Render current state
-            let monitors = state.get_monitors().await;
-            self.terminal.draw(|frame| {
-                self.renderer.render(frame, &monitors, self.display_mode);
-            })?;
+            // Check if application should stop
+            if !state.is_running().await {
+                debug!("Input handler stopping - application stopped");
+                break;
+            }
 
-            // Handle input with timeout
-            if event::poll(std::time::Duration::from_millis(100))? {
+            // Poll for events with very short timeout for maximum responsiveness
+            if event::poll(Duration::from_millis(20))? {
                 if let Event::Key(key) = event::read()? {
-                    let action = self.input_handler.handle_key(key);
+                    let action = input_handler.handle_key(key);
 
                     match action {
                         InputAction::Quit => {
@@ -76,27 +96,59 @@ impl TuiApp {
                             // The update loop will handle the refresh
                         }
                         InputAction::ToggleMode => {
-                            debug!("User toggled display mode");
-                            self.display_mode = match self.display_mode {
-                                DisplayMode::Detailed => DisplayMode::Compact,
-                                DisplayMode::Compact => DisplayMode::Detailed,
-                            };
+                            let now = std::time::Instant::now();
+                            if now.duration_since(last_toggle_time) >= DEBOUNCE_DURATION {
+                                debug!("User toggled display mode (debounced)");
+                                state.toggle_display_mode().await;
+                                last_toggle_time = now;
+                                debug!(
+                                    "Display mode toggled to: {:?}",
+                                    state.get_display_mode().await
+                                );
+                            } else {
+                                debug!("Toggle ignored (debounce active)");
+                            }
                         }
                         InputAction::None => {
                             // No action needed
                         }
                     }
                 }
-            }
-
-            // Check if application was stopped externally
-            if !state.is_running().await {
-                debug!("Application stopped externally");
-                break;
+            } else {
+                // Small sleep to prevent busy waiting
+                sleep(Duration::from_millis(5)).await;
             }
         }
 
-        debug!("TUI application finished");
+        debug!("Input event handler finished");
+        Ok(())
+    }
+
+    /// Main rendering loop
+    async fn render_loop(&mut self, state: AppState) -> Result<(), TuiError> {
+        debug!("Starting render loop");
+
+        loop {
+            // Check if application should stop
+            if !state.is_running().await {
+                debug!("Render loop stopping - application stopped");
+                break;
+            }
+
+            // Get current state
+            let monitors = state.get_monitors().await;
+            let display_mode = state.get_display_mode().await;
+
+            // Render frame
+            self.terminal.draw(|frame| {
+                self.renderer.render(frame, &monitors, display_mode);
+            })?;
+
+            // 60fps rendering (16ms per frame)
+            sleep(Duration::from_millis(16)).await;
+        }
+
+        debug!("Render loop finished");
         Ok(())
     }
 }
