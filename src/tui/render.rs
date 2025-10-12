@@ -127,7 +127,7 @@ impl Renderer {
                 Block::default()
                     .borders(Borders::ALL)
                     .title("glazewm State Viewer")
-                    .style(Style::default().fg(Color::Blue)), // Basic blue
+                    .border_style(Style::default().fg(Color::Blue)), // Basic blue
             );
 
         frame.render_widget(header, area);
@@ -202,7 +202,7 @@ impl Renderer {
         let outer_block = Block::default()
             .borders(Borders::ALL)
             .title("Monitors & Workspaces (Detailed)")
-            .style(Style::default().fg(Color::Blue)); // Basic blue
+            .border_style(Style::default().fg(Color::Blue)); // Basic blue
 
         frame.render_widget(outer_block, area);
     }
