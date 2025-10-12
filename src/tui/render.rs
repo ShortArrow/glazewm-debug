@@ -411,17 +411,22 @@ impl Renderer {
             } else {
                 ""
             };
-            let workspace_header = format!("Workspace {} {}", workspace.name(), workspace_status);
+            // Workspace as box per spec (for side-by-side view)
+            let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
+            let workspace_width = TextWidthCalculator::display_width(&workspace_text);
+            let header_padding = 20_usize.saturating_sub(workspace_width); // Smaller width for side-by-side
+
+            let workspace_top = format!("┌─ {} {}─┐", workspace_text, "─".repeat(header_padding));
 
             items.push(ListItem::new(Spans::from(Span::styled(
-                workspace_header,
+                workspace_top,
                 workspace_style,
             ))));
 
-            // Windows in this workspace - simplified for side-by-side
+            // Windows in this workspace - box format for side-by-side
             if workspace.windows().is_empty() {
                 items.push(ListItem::new(Spans::from(Span::styled(
-                    "(Empty)",
+                    "│ (Empty)",
                     Style::default().fg(Color::Gray),
                 ))));
             } else {
@@ -439,11 +444,17 @@ impl Renderer {
                     };
 
                     let focus_indicator = if window.is_focused() { "*" } else { "" };
-                    let window_info = format!(
-                        "┌─ {}{} ({:.0}%) ─┐",
+
+                    // Window box header
+                    let header_text = format!(
+                        "{}{} ({:.0}%)",
                         window.process_name(),
                         focus_indicator,
                         percentage
+                    );
+                    let window_info = format!(
+                        "│ ┌─ {} ─┐",
+                        TextWidthCalculator::truncate_to_width(&header_text, 15)
                     );
 
                     items.push(ListItem::new(Spans::from(Span::styled(
@@ -451,35 +462,48 @@ impl Renderer {
                         window_style,
                     ))));
 
+                    // Window content
                     let truncated_title =
-                        TextWidthCalculator::truncate_to_width(window.title(), 15);
+                        TextWidthCalculator::truncate_to_width(window.title(), 13);
                     let aligned_title =
-                        TextWidthCalculator::align_in_box(&truncated_title, 15, Alignment::Left);
-                    let window_content = format!("│ {} │", aligned_title);
+                        TextWidthCalculator::align_in_box(&truncated_title, 13, Alignment::Left);
+                    let window_content = format!("│ │ {} │", aligned_title);
 
                     items.push(ListItem::new(Spans::from(Span::styled(
                         window_content,
                         window_style,
                     ))));
 
-                    let window_details = format!(
-                        "│ {} {}x{} │",
+                    // Window details
+                    let state_text = format!(
+                        "{} {}x{}",
                         window.state_indicator(),
                         window.geometry().size.width,
                         window.geometry().size.height
                     );
+                    let aligned_state =
+                        TextWidthCalculator::align_in_box(&state_text, 13, Alignment::Left);
+                    let window_details = format!("│ │ {} │", aligned_state);
 
                     items.push(ListItem::new(Spans::from(Span::styled(
                         window_details,
                         Style::default().fg(Color::Gray),
                     ))));
 
+                    // Window bottom border
                     items.push(ListItem::new(Spans::from(Span::styled(
-                        "└─────────────────┘",
+                        "│ └─────────────┘",
                         window_style,
                     ))));
                 }
             }
+
+            // Workspace bottom border
+            let workspace_bottom = format!("└{}┘", "─".repeat(22)); // Match workspace width
+            items.push(ListItem::new(Spans::from(Span::styled(
+                workspace_bottom,
+                workspace_style,
+            ))));
 
             items.push(ListItem::new(Spans::from("")));
         }
