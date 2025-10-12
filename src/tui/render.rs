@@ -180,9 +180,20 @@ impl Renderer {
         let monitor_constraints: Vec<Constraint> = monitors
             .iter()
             .map(|monitor| {
-                let workspace_count = monitor.workspaces().len().max(1);
-                let estimated_height = workspace_count * 6 + 2; // Estimate per workspace + monitor border
-                Constraint::Min(estimated_height as u16)
+                if monitor.workspaces().is_empty() {
+                    Constraint::Min(5) // Minimal height for empty monitors
+                } else {
+                    let empty_count = monitor
+                        .workspaces()
+                        .iter()
+                        .filter(|ws| ws.windows().is_empty())
+                        .count();
+                    let filled_count = monitor.workspaces().len() - empty_count;
+
+                    // Calculate height: filled workspaces get more space, empty get minimal
+                    let estimated_height = (filled_count * 8) + (empty_count * 3) + 2; // Monitor border
+                    Constraint::Min(estimated_height as u16)
+                }
             })
             .collect();
 
@@ -253,9 +264,13 @@ impl Renderer {
             .workspaces()
             .iter()
             .map(|workspace| {
-                let window_count = workspace.windows().len().max(1);
-                let estimated_height = window_count * 4 + 2; // Estimate per window + workspace border
-                Constraint::Min(estimated_height as u16)
+                if workspace.windows().is_empty() {
+                    Constraint::Min(3) // Minimal height for empty workspaces (border + empty text)
+                } else {
+                    let window_count = workspace.windows().len();
+                    let estimated_height = window_count * 4 + 2; // Estimate per window + workspace border
+                    Constraint::Min(estimated_height as u16)
+                }
             })
             .collect();
 
