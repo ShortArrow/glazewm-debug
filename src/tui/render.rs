@@ -174,17 +174,17 @@ impl Renderer {
                     Constraint::Length(5) // Exact minimal height for empty monitors
                 } else {
                     let mut total_height = 2; // Monitor border
-                    
+
                     for workspace in monitor.workspaces() {
                         if workspace.windows().is_empty() {
                             total_height += 3; // Empty workspace
                         } else if workspace.windows().len() == 1 {
-                            total_height += 5; // Single window workspace  
+                            total_height += 5; // Single window workspace
                         } else {
                             total_height += workspace.windows().len() * 3 + 2; // Multiple windows
                         }
                     }
-                    
+
                     Constraint::Min(total_height as u16)
                 }
             })
