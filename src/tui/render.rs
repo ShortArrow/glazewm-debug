@@ -173,16 +173,19 @@ impl Renderer {
                 if monitor.workspaces().is_empty() {
                     Constraint::Length(5) // Exact minimal height for empty monitors
                 } else {
-                    let empty_count = monitor
-                        .workspaces()
-                        .iter()
-                        .filter(|ws| ws.windows().is_empty())
-                        .count();
-                    let filled_count = monitor.workspaces().len() - empty_count;
-
-                    // Calculate exact height: no extra space
-                    let estimated_height = (filled_count * 5) + (empty_count * 3) + 2; // Monitor border
-                    Constraint::Length(estimated_height as u16)
+                    let mut total_height = 2; // Monitor border
+                    
+                    for workspace in monitor.workspaces() {
+                        if workspace.windows().is_empty() {
+                            total_height += 3; // Empty workspace
+                        } else if workspace.windows().len() == 1 {
+                            total_height += 5; // Single window workspace  
+                        } else {
+                            total_height += workspace.windows().len() * 3 + 2; // Multiple windows
+                        }
+                    }
+                    
+                    Constraint::Min(total_height as u16)
                 }
             })
             .collect();
@@ -253,8 +256,12 @@ impl Renderer {
                     Constraint::Length(3) // Exact minimal height for empty workspaces (border + empty text)
                 } else {
                     let window_count = workspace.windows().len();
-                    let estimated_height = window_count * 3 + 2; // Exact per window (3) + workspace border (2)
-                    Constraint::Length(estimated_height as u16) // Use Length instead of Min for exact sizing
+                    if window_count == 1 {
+                        Constraint::Length(5) // Single window: exact compact size (3 + 2)
+                    } else {
+                        let estimated_height = window_count * 3 + 2; // Multiple windows: allow expansion
+                        Constraint::Min(estimated_height as u16)
+                    }
                 }
             })
             .collect();
@@ -330,7 +337,7 @@ impl Renderer {
         let window_constraints: Vec<Constraint> = workspace
             .windows()
             .iter()
-            .map(|_| Constraint::Length(3)) // Minimal height per window (title bar + content line + border)
+            .map(|_| Constraint::Min(3)) // Minimum 3 lines per window but allow expansion if space available
             .collect();
 
         let window_chunks = Layout::default()
