@@ -139,13 +139,7 @@ impl Renderer {
         area: Rect,
         monitors: &[Monitor],
     ) {
-        // Re-enable side-by-side monitor layout per DISPLAY.md spec
-        if monitors.len() > 1 && area.width >= 120 {
-            self.render_monitors_side_by_side(frame, area, monitors);
-            return;
-        }
-
-        // Single monitor or narrow screen - render vertically
+        // Force vertical layout for all monitors to fix width calculation issues
         let mut items = Vec::new();
 
         for monitor in monitors {
@@ -205,7 +199,9 @@ impl Renderer {
                 let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
                 let workspace_width = TextWidthCalculator::display_width(&workspace_text);
                 let workspace_inner_width = monitor_width.saturating_sub(6); // Monitor width minus borders and padding
-                let header_padding = workspace_inner_width.saturating_sub(workspace_width).saturating_sub(4); // Account for "┌─ ─┐"
+                let header_padding = workspace_inner_width
+                    .saturating_sub(workspace_width)
+                    .saturating_sub(4); // Account for "┌─ ─┐"
 
                 let workspace_top =
                     format!("│ ┌─ {} {}─┐ │", workspace_text, "─".repeat(header_padding));
@@ -219,20 +215,23 @@ impl Renderer {
                 let percentages = workspace.calculate_window_percentages();
                 let percentage_map: HashMap<_, _> = percentages.into_iter().collect();
 
-                // Windows layout - equal-width boxes that fill parent
+                // Windows layout - vertical stacking for all windows
                 if !workspace.windows().is_empty() {
-                    let window_count = workspace.windows().len();
-                    let available_width = workspace_inner_width.saturating_sub(4); // Workspace width minus inner borders
-                    let spaces_between = window_count.saturating_sub(1); // Spaces between boxes
-                    let total_box_width = available_width.saturating_sub(spaces_between);
-                    let box_width = total_box_width / window_count; // Equal width per box
+                    let window_box_width = workspace_inner_width.saturating_sub(4); // Full workspace width minus borders
 
-                    // Box headers line
-                    let mut box_parts = Vec::new();
                     for window in workspace.windows() {
                         let percentage = percentage_map.get(window.id()).unwrap_or(&0.0);
                         let focus_indicator = if window.is_focused() { "*" } else { "" };
 
+                        let window_style = if window.is_focused() {
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(Color::LightBlue)
+                        };
+
+                        // Window header
                         let header_text = format!(
                             "{}{} ({:.0}%)",
                             window.process_name(),
@@ -240,47 +239,41 @@ impl Renderer {
                             percentage
                         );
                         let header_width = TextWidthCalculator::display_width(&header_text);
-                        let header_padding =
-                            box_width.saturating_sub(4).saturating_sub(header_width); // 4 for "┌─ ─┐"
+                        let header_padding = window_box_width
+                            .saturating_sub(header_width)
+                            .saturating_sub(4); // 4 for "┌─ ─┐"
 
-                        box_parts.push(format!(
-                            "┌─ {} {}─┐",
+                        let window_header = format!(
+                            "│ │ ┌─ {} {}─┐ │",
                             TextWidthCalculator::truncate_to_width(
                                 &header_text,
-                                box_width.saturating_sub(6)
+                                window_box_width.saturating_sub(6)
                             ),
                             "─".repeat(header_padding)
-                        ));
-                    }
+                        );
 
-                    items.push(ListItem::new(Spans::from(Span::styled(
-                        format!("│ │ {} │ │", box_parts.join(" ")),
-                        Style::default().fg(Color::LightBlue),
-                    ))));
+                        items.push(ListItem::new(Spans::from(Span::styled(
+                            window_header,
+                            window_style,
+                        ))));
 
-                    // Content line
-                    let mut content_parts = Vec::new();
-                    for window in workspace.windows() {
+                        // Window title
                         let title = TextWidthCalculator::truncate_to_width(
                             window.title(),
-                            box_width.saturating_sub(4),
+                            window_box_width.saturating_sub(6),
                         );
                         let padded_title = TextWidthCalculator::align_in_box(
                             &title,
-                            box_width.saturating_sub(4),
+                            window_box_width.saturating_sub(6),
                             Alignment::Left,
                         );
-                        content_parts.push(format!("│ {} │", padded_title));
-                    }
 
-                    items.push(ListItem::new(Spans::from(Span::styled(
-                        format!("│ │ {} │ │", content_parts.join(" ")),
-                        Style::default().fg(Color::LightBlue),
-                    ))));
+                        items.push(ListItem::new(Spans::from(Span::styled(
+                            format!("│ │ │ {} │ │", padded_title),
+                            window_style,
+                        ))));
 
-                    // State line
-                    let mut state_parts = Vec::new();
-                    for window in workspace.windows() {
+                        // Window state
                         let state_text = format!(
                             "{} {}x{}",
                             window.state_indicator(),
@@ -289,26 +282,26 @@ impl Renderer {
                         );
                         let padded_state = TextWidthCalculator::align_in_box(
                             &state_text,
-                            box_width.saturating_sub(4),
+                            window_box_width.saturating_sub(6),
                             Alignment::Left,
                         );
-                        state_parts.push(format!("│ {} │", padded_state));
+
+                        items.push(ListItem::new(Spans::from(Span::styled(
+                            format!("│ │ │ {} │ │", padded_state),
+                            Style::default().fg(Color::Gray),
+                        ))));
+
+                        // Window bottom border
+                        let window_bottom =
+                            format!("│ │ └{}┘ │", "─".repeat(window_box_width.saturating_sub(4)));
+                        items.push(ListItem::new(Spans::from(Span::styled(
+                            window_bottom,
+                            window_style,
+                        ))));
+
+                        // Add small spacing between windows
+                        items.push(ListItem::new(Spans::from("│ │ │")));
                     }
-
-                    items.push(ListItem::new(Spans::from(Span::styled(
-                        format!("│ │ {} │ │", state_parts.join(" ")),
-                        Style::default().fg(Color::Gray),
-                    ))));
-
-                    // Bottom borders line
-                    let bottom_parts: Vec<String> = (0..window_count)
-                        .map(|_| format!("└{}┘", "─".repeat(box_width.saturating_sub(2))))
-                        .collect();
-
-                    items.push(ListItem::new(Spans::from(Span::styled(
-                        format!("│ │ {} │ │", bottom_parts.join(" ")),
-                        Style::default().fg(Color::LightBlue),
-                    ))));
                 } else {
                     items.push(ListItem::new(Spans::from(Span::styled(
                         "│ │ (Empty)",
@@ -417,7 +410,9 @@ impl Renderer {
             let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
             let workspace_width = TextWidthCalculator::display_width(&workspace_text);
             let monitor_inner_width = (area.width as usize).saturating_sub(4); // Area width minus borders
-            let header_padding = monitor_inner_width.saturating_sub(workspace_width).saturating_sub(4); // Account for "┌─ ─┐"
+            let header_padding = monitor_inner_width
+                .saturating_sub(workspace_width)
+                .saturating_sub(4); // Account for "┌─ ─┐"
 
             let workspace_top = format!("┌─ {} {}─┐", workspace_text, "─".repeat(header_padding));
 
@@ -501,7 +496,7 @@ impl Renderer {
                 }
             }
 
-            // Workspace bottom border  
+            // Workspace bottom border
             let workspace_bottom = format!("└{}┘", "─".repeat(monitor_inner_width));
             items.push(ListItem::new(Spans::from(Span::styled(
                 workspace_bottom,
