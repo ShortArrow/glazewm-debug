@@ -10,7 +10,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::domain::Monitor;
+use crate::domain::{Monitor, Workspace};
 use crate::tui::DisplayMode;
 use crate::utils::text_width::{Alignment, TextWidthCalculator};
 use std::collections::HashMap;
@@ -132,213 +132,256 @@ impl Renderer {
         frame.render_widget(no_data, area);
     }
 
-    /// Render the list of monitors and their workspaces (detailed mode)
+    /// Render the list of monitors and their workspaces (detailed mode) using proper ratatui layouts
     fn render_monitors_detailed<B: Backend>(
         &self,
         frame: &mut Frame<B>,
         area: Rect,
         monitors: &[Monitor],
     ) {
-        // Force vertical layout for all monitors to fix width calculation issues
-        let mut items = Vec::new();
-
-        for monitor in monitors {
-            // Monitor header with box drawing
-            let monitor_style = if monitor.is_focused() {
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-
-            let monitor_status = if monitor.is_focused() { "[Active]" } else { "" };
-            let base_text = format!(
-                "┌─ Monitor {} ({}x{}) {} ",
-                monitor.id(),
-                monitor.geometry().size.width,
-                monitor.geometry().size.height,
-                monitor_status
-            );
-
-            let base_width = TextWidthCalculator::display_width(&base_text);
-            let monitor_width = (area.width as usize).saturating_sub(4); // Terminal width minus outer borders
-            let remaining_width = monitor_width.saturating_sub(base_width);
-            let monitor_header = format!("{}{}┐", base_text, "─".repeat(remaining_width));
-
-            // Debug information for Unicode width
-            tracing::debug!(
-                "Monitor header: base_text='{}', base_width={}, remaining_width={}, total_length={}",
-                base_text.replace('\n', "\\n"),
-                base_width,
-                remaining_width,
-                TextWidthCalculator::display_width(&monitor_header)
-            );
-
-            items.push(ListItem::new(Spans::from(Span::styled(
-                monitor_header,
-                monitor_style,
-            ))));
-
-            // Workspaces for this monitor
-            for workspace in monitor.workspaces() {
-                let workspace_style = if workspace.is_focused() {
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(Color::Gray)
-                };
-
-                let workspace_status = if workspace.is_focused() {
-                    "[Active]"
-                } else {
-                    ""
-                };
-                // Workspace as box per enhanced spec
-                let workspace_text = format!("Workspace {} {}", workspace.name(), workspace_status);
-                let workspace_width = TextWidthCalculator::display_width(&workspace_text);
-                let workspace_inner_width = monitor_width.saturating_sub(6); // Monitor width minus borders and padding
-                let header_padding = workspace_inner_width
-                    .saturating_sub(workspace_width)
-                    .saturating_sub(4); // Account for "┌─ ─┐"
-
-                let workspace_top =
-                    format!("│ ┌─ {} {}─┐ │", workspace_text, "─".repeat(header_padding));
-
-                items.push(ListItem::new(Spans::from(Span::styled(
-                    workspace_top,
-                    workspace_style,
-                ))));
-
-                // Calculate window percentages
-                let percentages = workspace.calculate_window_percentages();
-                let percentage_map: HashMap<_, _> = percentages.into_iter().collect();
-
-                // Windows layout - vertical stacking for all windows
-                if !workspace.windows().is_empty() {
-                    let window_box_width = workspace_inner_width.saturating_sub(4); // Full workspace width minus borders
-
-                    for window in workspace.windows() {
-                        let percentage = percentage_map.get(window.id()).unwrap_or(&0.0);
-                        let focus_indicator = if window.is_focused() { "*" } else { "" };
-
-                        let window_style = if window.is_focused() {
-                            Style::default()
-                                .fg(Color::Cyan)
-                                .add_modifier(Modifier::BOLD)
-                        } else {
-                            Style::default().fg(Color::LightBlue)
-                        };
-
-                        // Window header
-                        let header_text = format!(
-                            "{}{} ({:.0}%)",
-                            window.process_name(),
-                            focus_indicator,
-                            percentage
-                        );
-                        let header_width = TextWidthCalculator::display_width(&header_text);
-                        let header_padding = window_box_width
-                            .saturating_sub(header_width)
-                            .saturating_sub(4); // 4 for "┌─ ─┐"
-
-                        let window_header = format!(
-                            "│ │ ┌─ {} {}─┐ │",
-                            TextWidthCalculator::truncate_to_width(
-                                &header_text,
-                                window_box_width.saturating_sub(6)
-                            ),
-                            "─".repeat(header_padding)
-                        );
-
-                        items.push(ListItem::new(Spans::from(Span::styled(
-                            window_header,
-                            window_style,
-                        ))));
-
-                        // Window title
-                        let title = TextWidthCalculator::truncate_to_width(
-                            window.title(),
-                            window_box_width.saturating_sub(6),
-                        );
-                        let padded_title = TextWidthCalculator::align_in_box(
-                            &title,
-                            window_box_width.saturating_sub(6),
-                            Alignment::Left,
-                        );
-
-                        items.push(ListItem::new(Spans::from(Span::styled(
-                            format!("│ │ │ {} │ │", padded_title),
-                            window_style,
-                        ))));
-
-                        // Window state
-                        let state_text = format!(
-                            "{} {}x{}",
-                            window.state_indicator(),
-                            window.geometry().size.width,
-                            window.geometry().size.height
-                        );
-                        let padded_state = TextWidthCalculator::align_in_box(
-                            &state_text,
-                            window_box_width.saturating_sub(6),
-                            Alignment::Left,
-                        );
-
-                        items.push(ListItem::new(Spans::from(Span::styled(
-                            format!("│ │ │ {} │ │", padded_state),
-                            Style::default().fg(Color::Gray),
-                        ))));
-
-                        // Window bottom border
-                        let window_bottom =
-                            format!("│ │ └{}┘ │", "─".repeat(window_box_width.saturating_sub(4)));
-                        items.push(ListItem::new(Spans::from(Span::styled(
-                            window_bottom,
-                            window_style,
-                        ))));
-
-                        // Add small spacing between windows
-                        items.push(ListItem::new(Spans::from("│ │ │")));
-                    }
-                } else {
-                    items.push(ListItem::new(Spans::from(Span::styled(
-                        "│ │ (Empty)",
-                        Style::default().fg(Color::Gray),
-                    ))));
-                }
-
-                // Workspace bottom border
-                let workspace_bottom = format!("│ └{}┘ │", "─".repeat(workspace_inner_width));
-                items.push(ListItem::new(Spans::from(Span::styled(
-                    workspace_bottom,
-                    workspace_style,
-                ))));
-
-                // Add spacing between workspaces
-                items.push(ListItem::new(Spans::from("")));
-            }
-
-            // Monitor bottom border with dynamic width
-            let bottom_border = format!("└{}┘", "─".repeat(monitor_width));
-            items.push(ListItem::new(Spans::from(Span::styled(
-                bottom_border,
-                monitor_style,
-            ))));
-            items.push(ListItem::new(Spans::from("")));
+        if monitors.is_empty() {
+            return;
         }
 
-        let list = List::new(items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Monitors & Workspaces (Detailed)")
-                    .style(Style::default().fg(Color::White)),
-            )
+        // Create vertical layout for all monitors
+        let monitor_constraints: Vec<Constraint> = monitors
+            .iter()
+            .map(|monitor| {
+                let workspace_count = monitor.workspaces().len().max(1);
+                let estimated_height = workspace_count * 6 + 2; // Estimate per workspace + monitor border
+                Constraint::Min(estimated_height as u16)
+            })
+            .collect();
+
+        let monitor_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(monitor_constraints)
+            .margin(1) // Leave space for outer border
+            .split(area);
+
+        for (monitor_idx, monitor) in monitors.iter().enumerate() {
+            if monitor_idx < monitor_chunks.len() {
+                self.render_single_monitor_with_layout(frame, monitor_chunks[monitor_idx], monitor);
+            }
+        }
+
+        // Render outer border for the entire area
+        let outer_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Monitors & Workspaces (Detailed)")
             .style(Style::default().fg(Color::White));
 
-        frame.render_widget(list, area);
+        frame.render_widget(outer_block, area);
+    }
+
+    /// Render a single monitor using proper ratatui layout
+    fn render_single_monitor_with_layout<B: Backend>(
+        &self,
+        frame: &mut Frame<B>,
+        area: Rect,
+        monitor: &Monitor,
+    ) {
+        let monitor_style = if monitor.is_focused() {
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        let monitor_status = if monitor.is_focused() {
+            " [Active]"
+        } else {
+            ""
+        };
+        let monitor_title = format!(
+            "Monitor {} ({}x{}){}",
+            monitor.id(),
+            monitor.geometry().size.width,
+            monitor.geometry().size.height,
+            monitor_status
+        );
+
+        if monitor.workspaces().is_empty() {
+            // Monitor with no workspaces
+            let empty_text = Paragraph::new("No workspaces")
+                .style(Style::default().fg(Color::Gray))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(monitor_title)
+                        .style(monitor_style),
+                );
+
+            frame.render_widget(empty_text, area);
+            return;
+        }
+
+        // Create layout for workspaces within this monitor
+        let workspace_constraints: Vec<Constraint> = monitor
+            .workspaces()
+            .iter()
+            .map(|workspace| {
+                let window_count = workspace.windows().len().max(1);
+                let estimated_height = window_count * 4 + 2; // Estimate per window + workspace border
+                Constraint::Min(estimated_height as u16)
+            })
+            .collect();
+
+        let workspace_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(workspace_constraints)
+            .margin(1) // Leave space for monitor border
+            .split(area);
+
+        for (ws_idx, workspace) in monitor.workspaces().iter().enumerate() {
+            if ws_idx < workspace_chunks.len() {
+                self.render_single_workspace_with_layout(
+                    frame,
+                    workspace_chunks[ws_idx],
+                    workspace,
+                );
+            }
+        }
+
+        // Render monitor border around the entire area
+        let monitor_block = Block::default()
+            .borders(Borders::ALL)
+            .title(monitor_title)
+            .style(monitor_style);
+
+        frame.render_widget(monitor_block, area);
+    }
+
+    /// Render a single workspace using proper ratatui layout
+    fn render_single_workspace_with_layout<B: Backend>(
+        &self,
+        frame: &mut Frame<B>,
+        area: Rect,
+        workspace: &Workspace,
+    ) {
+        let workspace_style = if workspace.is_focused() {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+
+        let workspace_status = if workspace.is_focused() {
+            " [Active]"
+        } else {
+            ""
+        };
+
+        let workspace_title = format!("Workspace {}{}", workspace.name(), workspace_status);
+
+        if workspace.windows().is_empty() {
+            // Empty workspace
+            let empty_text = Paragraph::new("(Empty)")
+                .style(Style::default().fg(Color::Gray))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(workspace_title)
+                        .style(workspace_style),
+                );
+
+            frame.render_widget(empty_text, area);
+            return;
+        }
+
+        // Create vertical layout for windows within this workspace
+        let window_constraints: Vec<Constraint> = workspace
+            .windows()
+            .iter()
+            .map(|_| Constraint::Min(3)) // Each window needs at least 3 lines (title + content line + border)
+            .collect();
+
+        let window_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(window_constraints)
+            .margin(1) // Leave space for workspace border
+            .split(area);
+
+        // Calculate window percentages
+        let percentages = workspace.calculate_window_percentages();
+        let percentage_map: HashMap<_, _> = percentages
+            .into_iter()
+            .map(|(id, percentage)| (id, percentage as f64))
+            .collect();
+
+        for (win_idx, window) in workspace.windows().iter().enumerate() {
+            if win_idx < window_chunks.len() {
+                self.render_single_window_with_layout(
+                    frame,
+                    window_chunks[win_idx],
+                    window,
+                    &percentage_map,
+                );
+            }
+        }
+
+        // Render workspace border around the entire area
+        let workspace_block = Block::default()
+            .borders(Borders::ALL)
+            .title(workspace_title)
+            .style(workspace_style);
+
+        frame.render_widget(workspace_block, area);
+    }
+
+    /// Render a single window using proper ratatui layout
+    fn render_single_window_with_layout<B: Backend>(
+        &self,
+        frame: &mut Frame<B>,
+        area: Rect,
+        window: &crate::domain::Window,
+        percentage_map: &HashMap<crate::domain::values::WindowId, f64>,
+    ) {
+        let window_style = if window.is_focused() {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::LightBlue)
+        };
+
+        let percentage = percentage_map.get(window.id()).unwrap_or(&0.0);
+        let focus_indicator = if window.is_focused() { "*" } else { "" };
+
+        let window_title = format!(
+            "{}{} ({:.0}%)",
+            window.process_name(),
+            focus_indicator,
+            percentage
+        );
+
+        // Create content for the window - truncate title and state to fit
+        let available_width = area.width.saturating_sub(4) as usize; // minus borders and padding
+        let truncated_title =
+            TextWidthCalculator::truncate_to_width(window.title(), available_width);
+
+        let state_text = format!(
+            "{} {}x{}",
+            window.state_indicator(),
+            window.geometry().size.width,
+            window.geometry().size.height
+        );
+
+        let window_content = vec![
+            Spans::from(truncated_title),
+            Spans::from(Span::styled(state_text, Style::default().fg(Color::Gray))),
+        ];
+
+        let window_paragraph = Paragraph::new(window_content).style(window_style).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(window_title)
+                .style(window_style),
+        );
+
+        frame.render_widget(window_paragraph, area);
     }
 
     /// Render multiple monitors side by side
