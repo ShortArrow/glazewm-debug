@@ -2,6 +2,8 @@
 
 A UNIX philosophy-based TUI debugger for visualizing glazewm window manager state.
 
+![glazewm-debug screenshot](images/screenshot.png)
+
 ## Quick Start
 
 ```bash
