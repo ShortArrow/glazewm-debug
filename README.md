@@ -1,22 +1,43 @@
 # glazewm-debug
 
-A UNIX philosophy-based TUI debugger for visualizing glazewm window manager state.
+A CLI+JSON TUI debugger for visualizing [GlazeWM](https://github.com/glzr-io/glazewm) window manager state with beautiful terminal colors and real-time updates.
 
-![glazewm-debug screenshot](images/screenshot.png)
+![glazewm-debug screenshot](https://raw.githubusercontent.com/ShortArrow/glazewm-debug/main/images/screenshot.png)
 
-## Quick Start
+## Installation
+
+### From crates.io (Recommended)
+
+```bash
+cargo install glazewm-debug
+```
+
+### From source
 
 ```bash
 # Ensure glazewm is installed and in PATH
 winget install glzr-io.glazewm
 
 # Clone and build
-git clone https://github.com/username/glazewm-debug.git
+git clone https://github.com/ShortArrow/glazewm-debug.git
 cd glazewm-debug
 cargo build --release
 
 # Run
 ./target/release/glazewm-debug.exe
+```
+
+## Quick Start
+
+```bash
+# Basic usage - opens real-time TUI
+glazewm-debug
+
+# Test color support
+glazewm-debug --color-test
+
+# Run in demo mode (no glazewm required)
+glazewm-debug --demo
 ```
 
 ## What It Does
@@ -57,9 +78,10 @@ glazewm-debug --quiet
 
 **Keyboard Controls:**
 
-- `q` - Quit
+- `q` / `Esc` - Quit application
 - `r` - Force refresh  
-- `?` - Help
+- `c` - Toggle between Detailed and Compact view modes
+- `Ctrl+C` - Force quit
 
 ## Architecture
 

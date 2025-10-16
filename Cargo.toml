@@ -2,11 +2,22 @@
 name = "glazewm-debug"
 version = "0.1.0"
 edition = "2021"
+authors = ["ShortArrow"]
 description = "A CLI+JSON TUI debugger for glazewm window manager state visualization"
 license = "MIT"
-repository = "https://github.com/username/glazewm-debug"
-keywords = ["glazewm", "tui", "window-manager", "debugging"]
+repository = "https://github.com/ShortArrow/glazewm-debug"
+homepage = "https://github.com/ShortArrow/glazewm-debug"
+documentation = "https://github.com/ShortArrow/glazewm-debug/blob/main/README.md"
+readme = "README.md"
+keywords = ["glazewm", "tui", "window-manager", "debugging", "terminal"]
 categories = ["command-line-utilities", "development-tools"]
+include = [
+    "src/**/*",
+    "README.md",
+    "LICENSE",
+    "docs/**/*",
+    "Cargo.toml"
+]
 
 [dependencies]
 # Core JSON processing

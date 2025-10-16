@@ -9,7 +9,7 @@ use crossterm::{
     style::{Color, Print, ResetColor, SetForegroundColor},
 };
 use glazewm_debug::{AppState, TuiApp, UpdateConfig, UpdateLoop};
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::select;
